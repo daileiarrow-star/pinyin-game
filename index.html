@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#6C5CE7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<title>拼音小达人 · 一年级易错拼音强化练习</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ============ 首页 ============ -->
+<section id="page-home" class="page active">
+  <header class="topbar">
+    <div class="pill pill-star">⭐ <span id="hd-points">0</span></div>
+    <div class="pill pill-master">🏅 <span id="hd-mastered">0</span>/29</div>
+  </header>
+
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <div class="av av-hat"   id="av-hat"></div>
+      <div class="av av-face"  id="av-face">🧒</div>
+      <div class="av av-eyes"  id="av-eyes"></div>
+      <div class="av av-top"   id="av-top"></div>
+      <div class="av av-bottom" id="av-bottom"></div>
+      <div class="av av-acc"   id="av-acc"></div>
+      <div class="av av-prop"  id="av-prop"></div>
+    </div>
+    <div class="stage-name" id="stage-name">我的小搭档</div>
+  </div>
+
+  <div class="worn-row" id="worn-row"></div>
+
+  <div class="home-actions">
+    <button class="btn btn-primary btn-xl" id="btn-start">
+      <span class="b-ico">🚀</span> 开始练习
+    </button>
+    <div class="home-actions-2">
+      <button class="btn btn-ghost" id="btn-report"><span class="b-ico">📊</span> 学习报告</button>
+      <button class="btn btn-ghost" id="btn-wardrobe"><span class="b-ico">🎁</span> 我的衣柜</button>
+    </div>
+    <div class="free-tip" id="free-tip"></div>
+  </div>
+</section>
+
+<!-- ============ 练习页 ============ -->
+<section id="page-practice" class="page">
+  <header class="topbar">
+    <button class="icon-btn" id="btn-quit">←</button>
+    <div class="pill pill-progress"><span id="pd-index">1</span>/<span id="pd-total">20</span></div>
+    <div class="pill pill-streak">🔥 <span id="pd-streak">0</span></div>
+  </header>
+
+  <div class="bar-outer"><div class="bar-inner" id="pd-bar"></div></div>
+
+  <div class="q-card">
+    <div class="q-tag" id="pd-tag">b / p</div>
+    <div class="q-word" id="pd-word">八</div>
+    <button class="btn btn-audio" id="btn-audio"><span class="b-ico">🔊</span> 听一听</button>
+    <div class="q-hint">听不清？点左边按钮再听一遍</div>
+  </div>
+
+  <div class="options" id="pd-options"></div>
+  <div class="feedback" id="pd-feedback"></div>
+</section>
+
+<!-- ============ 结果页 ============ -->
+<section id="page-result" class="page">
+  <div class="result-top">
+    <div class="result-emoji" id="rs-emoji">🎉</div>
+    <h2 id="rs-title">练习完成！</h2>
+  </div>
+  <div class="result-grid">
+    <div class="rg-item"><span class="rg-k">本次答对</span><span class="rg-v" id="rs-correct">0/0</span></div>
+    <div class="rg-item"><span class="rg-k">正确率</span><span class="rg-v" id="rs-rate">0%</span></div>
+    <div class="rg-item"><span class="rg-k">本次积分</span><span class="rg-v" id="rs-gain">+0</span></div>
+    <div class="rg-item"><span class="rg-k">总积分</span><span class="rg-v" id="rs-total">0</span></div>
+  </div>
+  <div class="reward-box" id="rs-rewards"></div>
+  <button class="btn btn-primary btn-xl" id="btn-again">再来一轮</button>
+  <button class="btn btn-ghost" id="btn-result-home">返回首页</button>
+</section>
+
+<!-- ============ 报告页 ============ -->
+<section id="page-report" class="page">
+  <header class="topbar">
+    <button class="icon-btn" id="btn-report-back">←</button>
+    <div class="page-title">学习报告</div>
+    <button class="icon-btn" id="btn-share">↗</button>
+  </header>
+  <div id="report-body"></div>
+</section>
+
+<!-- ============ 衣柜页 ============ -->
+<section id="page-wardrobe" class="page">
+  <header class="topbar">
+    <button class="icon-btn" id="btn-wardrobe-back">←</button>
+    <div class="page-title">我的衣柜</div>
+    <div class="pill pill-star">⭐ <span id="wd-points">0</span></div>
+  </header>
+  <div class="wd-tip" id="wd-tip"></div>
+  <div class="wd-grid" id="wd-grid"></div>
+</section>
+
+<!-- ============ 弹窗：知识点讲解 ============ -->
+<div class="modal" id="modal-explain">
+  <div class="modal-box">
+    <div class="modal-emoji">💡</div>
+    <h3 id="ex-title">知识点讲解</h3>
+    <div class="ex-text" id="ex-text"></div>
+    <button class="btn btn-audio" id="btn-ex-audio"><span class="b-ico">🔊</span> 听讲解</button>
+    <button class="btn btn-primary" id="btn-ex-ok">学会了，练一题</button>
+  </div>
+</div>
+
+<!-- ============ 弹窗：彩蛋 / 解锁 ============ -->
+<div class="modal" id="modal-reward">
+  <div class="modal-box">
+    <div class="modal-emoji" id="rw-emoji">🎁</div>
+    <h3 id="rw-title">惊喜彩蛋！</h3>
+    <div class="rw-item" id="rw-item"></div>
+    <div class="rw-desc" id="rw-desc"></div>
+    <button class="btn btn-primary" id="btn-rw-ok">收下啦</button>
+  </div>
+</div>
+
+<!-- ============ 弹窗：开通完整版 ============ -->
+<div class="modal" id="modal-pay">
+  <div class="modal-box">
+    <div class="modal-emoji">👑</div>
+    <h3>开通完整版</h3>
+    <div class="price">¥99 <span>永久使用</span></div>
+    <ul class="feat">
+      <li>✅ 29 个易错知识点全覆盖</li>
+      <li>✅ 每天不限练习次数</li>
+      <li>✅ 全部装扮道具</li>
+      <li>✅ 后续更新免费</li>
+    </ul>
+    <div class="qr-box" id="qr-box">
+      <div class="qr-ph">［在这里放你的收款码］<br><small>把 assets/qrcode.png 换成你的收款码即可</small></div>
+    </div>
+    <div class="pay-note" id="pay-note">扫码支付后，点下面按钮输入激活码</div>
+    <div class="code-row">
+      <input id="inp-code" class="code-input" type="text" inputmode="latin" placeholder="输入激活码">
+      <button class="btn btn-mini" id="btn-code">兑换</button>
+    </div>
+    <button class="btn btn-ghost" id="btn-pay-close">暂时不用</button>
+  </div>
+</div>
+
+<!-- ============ 弹窗：确认 ============ -->
+<div class="modal" id="modal-confirm">
+  <div class="modal-box">
+    <h3 id="cf-title">确认</h3>
+    <div class="cf-text" id="cf-text"></div>
+    <div class="cf-row">
+      <button class="btn btn-ghost" id="btn-cf-no">取消</button>
+      <button class="btn btn-primary" id="btn-cf-yes">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

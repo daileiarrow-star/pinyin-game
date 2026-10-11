@@ -13,6 +13,15 @@ console.log('知识点数量:', KNOWLEDGE_POINTS.length);
 const kpIds = new Set(KNOWLEDGE_POINTS.map(k => k.id));
 if (kpIds.size !== KNOWLEDGE_POINTS.length) errs.push('知识点 id 有重复');
 
+// 题卡上的短标签必须唯一，否则孩子分不清具体是哪个规则
+const tagSeen = {};
+KNOWLEDGE_POINTS.forEach(k => {
+  if (!k.tag) errs.push('知识点缺少 tag: ' + k.id);
+  if (tagSeen[k.tag]) errs.push('知识点 tag 重复（题卡上会分不清）: "' + k.tag + '" 被 ' + tagSeen[k.tag] + ' 和 ' + k.id + ' 共用');
+  tagSeen[k.tag] = k.id;
+  if (!k.name || !k.category) errs.push('知识点字段不全: ' + k.id);
+});
+
 const missingExp = KNOWLEDGE_POINTS.filter(k => !EXPLANATIONS[k.id]);
 if (missingExp.length) errs.push('缺少讲解: ' + missingExp.map(k => k.id).join(','));
 const orphanExp = Object.keys(EXPLANATIONS).filter(k => !kpIds.has(k));

@@ -103,7 +103,7 @@
   }
 
   /* ============ 语音（两级降级，零成本） ============ */
-  var audioDowngrade = false;     // 预生成音频不可用时，永久降级到浏览器合成
+  var audioFail = 0;              // 连续失败计数，连续 2 次才永久降级到浏览器合成
   function speak(text) {
     if (!('speechSynthesis' in window) || !text) return false;
     try {
@@ -123,7 +123,7 @@
   }
   function playAudioFile(path) {
     return new Promise(function (resolve, reject) {
-      if (audioDowngrade) return reject(new Error('downgraded'));
+      if (audioFail >= 2) return reject(new Error('downgraded'));
       var a = new Audio(path);
       var done = false;
       a.onended = function () { if (!done) { done = true; resolve(true); } };
@@ -132,22 +132,22 @@
       if (p && p.catch) p.catch(function (e) { if (!done) { done = true; reject(e); } });
     });
   }
+  function playOrSpeak(path, text) {
+    playAudioFile(path).then(function () {
+      audioFail = 0;
+    }).catch(function () {
+      audioFail++;
+      if (!speak(text)) toast('这个浏览器不支持朗读，请换一个试试');
+    });
+  }
   function playQuestion(q) {
-    playAudioFile(CONFIG.audioBase + 'q/' + q.id + '.mp3')
-      .catch(function () {
-        audioDowngrade = true;
-        if (!speak(q.content)) toast('这个浏览器不支持朗读，请换一个试试');
-      });
+    playOrSpeak(CONFIG.audioBase + 'q/' + q.id + '.mp3', q.content);
   }
   function playExplain(kid) {
     var ex = EXPLANATIONS[kid];
     if (!ex) return;
     var plain = ex.title + '。' + ex.text.replace(/[🔑📝⚠️·]/g, '，').replace(/\n+/g, '，');
-    playAudioFile(CONFIG.audioBase + 'e/' + kid + '.mp3')
-      .catch(function () {
-        audioDowngrade = true;
-        if (!speak(plain)) toast('这个浏览器不支持朗读，请换一个试试');
-      });
+    playOrSpeak(CONFIG.audioBase + 'e/' + kid + '.mp3', plain);
   }
 
   /* ============ 日期 / 连续天数 ============ */
@@ -271,15 +271,22 @@
   /* ============ 练习会话 ============ */
   var SS = null;   // 当前会话
 
+  function sessionQuota() {
+    if (S.paid) return CONFIG.sessionLength;
+    return Math.max(0, Math.min(CONFIG.sessionLength, CONFIG.freeDailyLimit - S.dayCount));
+  }
+
   function startPractice(customList) {
     rollDay();
-    if (!S.paid && S.dayCount >= CONFIG.freeDailyLimit) {
+    var quota = sessionQuota();
+    if (quota <= 0) {
       openPay();
       toast('今天的免费练习已经用完啦');
       return;
     }
-    var list = customList || pickQueue(CONFIG.sessionLength);
+    var list = customList || pickQueue(quota);
     if (!list.length) { toast('题库为空'); return; }
+    if (list.length > quota) list = list.slice(0, quota);
 
     SS = {
       queue: list.map(toItem),
@@ -289,6 +296,7 @@
       gain: 0,
       streak: 0,
       best: 0,
+      len: list.length,
       locked: false,
       retestIds: {},
       justMastered: [],
@@ -303,10 +311,10 @@
     if (!it) return endPractice();
     SS.locked = false;
 
-    $('pd-index').textContent = Math.min(SS.answered + 1, CONFIG.sessionLength);
-    $('pd-total').textContent = CONFIG.sessionLength;
+    $('pd-index').textContent = Math.min(SS.answered + 1, SS.len);
+    $('pd-total').textContent = SS.len;
     $('pd-streak').textContent = SS.streak;
-    $('pd-bar').style.width = Math.round(SS.answered / CONFIG.sessionLength * 100) + '%';
+    $('pd-bar').style.width = Math.round(SS.answered / SS.len * 100) + '%';
     $('pd-tag').textContent = kpOf(it.knowledge).tag;
 
     var w = $('pd-word');
@@ -428,13 +436,8 @@
 
   function advance() {
     if (!SS) return;
-    // 答错的题，重新排到本会话末尾重测
-    var cur = SS.queue[SS.i];
-    if (S.wrong[cur.id] && !SS.retestIds[cur.id] && (S.answered[cur.id] || 0) > 0 && S.rightStreak[cur.id] === 0) {
-      // 已在 showExplain 流程中处理，这里不重复
-    }
     SS.i++;
-    if (SS.answered >= CONFIG.sessionLength || SS.i >= SS.queue.length) return endPractice();
+    if (SS.answered >= SS.len || SS.i >= SS.queue.length) return endPractice();
     renderQuestion();
   }
 

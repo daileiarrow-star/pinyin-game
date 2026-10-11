@@ -43,10 +43,10 @@ const KNOWLEDGE_POINTS = [
   { id: 'iu_ou', name: 'iu 和 ou 不分',  tag: 'iu / ou', category: '韵母', tip: 'iu 由 i 滑向 ou' },
 
   // ===== 整体认读（4）=====
-  { id: 'zhi_chi_shi', name: 'zhi chi shi',  tag: '整体认读', category: '整体认读', tip: '直接读，不要拼' },
-  { id: 'zi_ci_si',    name: 'zi ci si',     tag: '整体认读', category: '整体认读', tip: '直接读，不要拼' },
-  { id: 'yi_wu_yu',    name: 'yi wu yu',     tag: '整体认读', category: '整体认读', tip: 'i u ü 加 y/w 变身' },
-  { id: 'ye_yue_yuan', name: 'ye yue yuan',  tag: '整体认读', category: '整体认读', tip: 'ie üe üan 加 y 变身' },
+  { id: 'zhi_chi_shi', name: 'zhi chi shi',  tag: 'zhi/chi/shi', category: '整体认读', tip: '直接读，不要拼' },
+  { id: 'zi_ci_si',    name: 'zi ci si',     tag: 'zi/ci/si',    category: '整体认读', tip: '直接读，不要拼' },
+  { id: 'yi_wu_yu',    name: 'yi wu yu',     tag: 'yi/wu/yu',    category: '整体认读', tip: 'i u ü 加 y/w 变身' },
+  { id: 'ye_yue_yuan', name: 'ye yue yuan',  tag: 'ye/yue/yuan', category: '整体认读', tip: 'ie üe üan 加 y 变身' },
 
   // ===== 声调（4）=====
   { id: 'tone_1_2',    name: '一声 和 二声', tag: '1 / 2 声', category: '声调', tip: '一声平，二声扬' },
@@ -55,8 +55,8 @@ const KNOWLEDGE_POINTS = [
   { id: 'neutral',     name: '轻声',        tag: '轻声',     category: '声调', tip: '又轻又短，一带而过' },
 
   // ===== 标调规则（2）=====
-  { id: 'mark_iu', name: 'i u 并列标在后', tag: '标调规则', category: '标调', tip: 'i u 并列，声调标在后面那个' },
-  { id: 'u_dots',  name: 'ü 上两点要省略', tag: '标调规则', category: '标调', tip: 'j q x 后面的 ü 去掉两点' },
+  { id: 'mark_iu', name: 'i u 并列标在后', tag: 'i u 标调', category: '标调', tip: 'i u 并列，声调标在后面那个' },
+  { id: 'u_dots',  name: 'ü 上两点要省略', tag: 'ü 省两点', category: '标调', tip: 'j q x 后面的 ü 去掉两点' },
 
   // ===== 其他（2）=====
   { id: 'nasal',  name: '前后鼻音综合',  tag: '前后鼻音', category: '其他', tip: '前鼻舌尖抵，后鼻舌根起' },

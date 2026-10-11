@@ -11,6 +11,16 @@
 </head>
 <body>
 
+<!-- ============ 选择小伙伴（首次进入）============ -->
+<section id="page-choose" class="page">
+  <div class="choose-hero">
+    <div class="choose-emoji">👋</div>
+    <h2>你好呀！选一个小伙伴吧</h2>
+    <p>选好了就一起开始练拼音～</p>
+  </div>
+  <div class="choose-grid" id="choose-grid"></div>
+</section>
+
 <!-- ============ 首页 ============ -->
 <section id="page-home" class="page active">
   <header class="topbar">
@@ -19,16 +29,8 @@
   </header>
 
   <div class="stage-wrap">
-    <div class="stage" id="stage">
-      <div class="av av-hat"   id="av-hat"></div>
-      <div class="av av-face"  id="av-face">🧒</div>
-      <div class="av av-eyes"  id="av-eyes"></div>
-      <div class="av av-top"   id="av-top"></div>
-      <div class="av av-bottom" id="av-bottom"></div>
-      <div class="av av-acc"   id="av-acc"></div>
-      <div class="av av-prop"  id="av-prop"></div>
-    </div>
-    <div class="stage-name" id="stage-name">我的小搭档</div>
+    <div class="stage" id="stage"></div>
+    <div class="stage-name" id="stage-name">我的小伙伴</div>
   </div>
 
   <div class="worn-row" id="worn-row"></div>
@@ -100,16 +102,24 @@
     <div class="page-title">我的衣柜</div>
     <div class="pill pill-star">⭐ <span id="wd-points">0</span></div>
   </header>
-  <div class="wd-tip" id="wd-tip"></div>
+  <div class="wd-top">
+    <div class="wd-preview" id="wd-preview"></div>
+    <div class="wd-side">
+      <div class="wd-tip" id="wd-tip"></div>
+      <button class="btn btn-ghost" id="btn-change-avatar"><span class="b-ico">🔄</span> 换个小男孩 / 小女孩</button>
+    </div>
+  </div>
   <div class="wd-grid" id="wd-grid"></div>
 </section>
 
-<!-- ============ 弹窗：知识点讲解 ============ -->
+<!-- ============ 弹窗：知识点讲解（图文）============ -->
 <div class="modal" id="modal-explain">
   <div class="modal-box">
-    <div class="modal-emoji">💡</div>
-    <h3 id="ex-title">知识点讲解</h3>
-    <div class="ex-text" id="ex-text"></div>
+    <div class="ex-head">
+      <span class="ex-tag" id="ex-tag"></span>
+      <h3 id="ex-title">知识点讲解</h3>
+    </div>
+    <div class="ex-body" id="ex-body"></div>
     <button class="btn btn-audio" id="btn-ex-audio"><span class="b-ico">🔊</span> 听讲解</button>
     <button class="btn btn-primary" id="btn-ex-ok">学会了，练一题</button>
   </div>
@@ -165,6 +175,9 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/data.js"></script>
+<script src="js/questions.js"></script>
+<script src="js/illus.js"></script>
+<script src="js/avatar.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

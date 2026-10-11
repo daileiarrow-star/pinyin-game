@@ -6,18 +6,16 @@
   'use strict';
 
   /* ============ 常量 ============ */
-  var LS_KEY = 'pinyin_daren_v1';
-  var SLOT2EL = {
-    hat: 'av-hat', eyes: 'av-eyes', top: 'av-top',
-    bottom: 'av-bottom', acc: 'av-acc', prop: 'av-prop'
-  };
+  var LS_KEY = 'pinyin_daren_v2';   // v2：数据结构升级（装扮槽位变化），旧进度不迁移
+  var SLOTS = ['hat', 'eyes', 'top', 'bottom', 'shoes', 'back', 'hand'];
   var PURCHASE_EGG_EVERY = 3;   // 每掌握 3 个知识点触发一次彩蛋
   var DAY_EGG_EVERY = 3;        // 连续练习满 3 天触发一次彩蛋
 
   /* ============ 状态 ============ */
   function freshState() {
     return {
-      v: 1,
+      v: 2,
+      gender: '',       // 'boy' | 'girl'，首次进入时选择
       points: 0,
       paid: false,
       answered: {},     // qid -> 累计作答次数
@@ -144,10 +142,9 @@
     playOrSpeak(CONFIG.audioBase + 'q/' + q.id + '.mp3', q.content);
   }
   function playExplain(kid) {
-    var ex = EXPLANATIONS[kid];
-    if (!ex) return;
-    var plain = ex.title + '。' + ex.text.replace(/[🔑📝⚠️·]/g, '，').replace(/\n+/g, '，');
-    playOrSpeak(CONFIG.audioBase + 'e/' + kid + '.mp3', plain);
+    var t = explainSpeech(kid);   // 朗读稿定义在 data.js，与语音生成脚本共用
+    if (!t) return;
+    playOrSpeak(CONFIG.audioBase + 'e/' + kid + '.mp3', t);
   }
 
   /* ============ 日期 / 连续天数 ============ */
@@ -177,19 +174,17 @@
 
   /* ============ 首页 ============ */
   function renderStage() {
-    for (var slot in SLOT2EL) {
-      var el = $(SLOT2EL[slot]);
-      var oid = S.worn[slot];
-      el.textContent = (oid && OUTFIT_MAP[oid]) ? OUTFIT_MAP[oid].emoji : '';
-    }
+    var box = $('stage');
+    if (box) box.innerHTML = Avatar.svg(S.gender || 'boy', S.worn, { cls: 'avatar-svg' });
     var row = $('worn-row');
     row.innerHTML = '';
     var names = [];
-    for (var s in S.worn) {
-      if (S.worn[s] && OUTFIT_MAP[S.worn[s]]) names.push(OUTFIT_MAP[S.worn[s]].emoji + ' ' + OUTFIT_MAP[S.worn[s]].name);
-    }
+    SLOTS.forEach(function (s) {
+      var oid = S.worn[s];
+      if (oid && OUTFIT_MAP[oid]) names.push(OUTFIT_MAP[oid].name);
+    });
     if (!names.length) {
-      row.innerHTML = '<div class="worn-chip">还没穿装扮，去衣柜看看吧～</div>';
+      row.innerHTML = '<div class="worn-chip">穿着白 T 恤和短裤，去衣柜换新装扮吧～</div>';
     } else {
       names.forEach(function (n) {
         var d = document.createElement('div');
@@ -395,11 +390,59 @@
     }
   }
 
-  /* 讲解弹窗 → 关闭后插入「举一反三」+ 原题重测 */
+  /* 讲解弹窗（图 + 口诀 + 例词 + 提醒）→ 关闭后插入「举一反三」+ 原题重测 */
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
   function showExplain(kid, it) {
     var ex = EXPLANATIONS[kid];
-    $('ex-title').textContent = ex ? ex.title : kpOf(kid).name;
-    $('ex-text').textContent = ex ? ex.text : '';
+    var kp = KP_MAP[kid] || {};
+    $('ex-title').textContent = ex ? ex.title : (kp.name || kid);
+    $('ex-tag').textContent = kp.tag ? '考：' + kp.tag : '';
+
+    var box = $('ex-body');
+    box.innerHTML = '';
+    if (ex) {
+      var svg = renderIllustration(ex.illus);
+      if (svg) {
+        var d = document.createElement('div');
+        d.className = 'ex-illus';
+        d.innerHTML = svg;
+        box.appendChild(d);
+      }
+      if (ex.one) {
+        var o = document.createElement('div');
+        o.className = 'ex-one';
+        o.textContent = ex.one;
+        box.appendChild(o);
+      }
+      if (ex.key) {
+        var k = document.createElement('div');
+        k.className = 'ex-key';
+        k.innerHTML = '<span class="ex-key-badge">口诀</span><span>' + esc(ex.key) + '</span>';
+        box.appendChild(k);
+      }
+      if (ex.pairs && ex.pairs.length) {
+        var pr = document.createElement('div');
+        pr.className = 'ex-pairs';
+        ex.pairs.forEach(function (p) {
+          var c = document.createElement('div');
+          c.className = 'ex-pair';
+          c.innerHTML = '<b>' + esc(p[0]) + '</b><span>' + esc(p[1]) + '</span>';
+          pr.appendChild(c);
+        });
+        box.appendChild(pr);
+      }
+      if (ex.warn) {
+        var w = document.createElement('div');
+        w.className = 'ex-warn';
+        w.innerHTML = '<span class="ex-warn-ico">⚠️</span><span>' + esc(ex.warn) + '</span>';
+        box.appendChild(w);
+      }
+    }
+
     $('btn-ex-audio').onclick = function () { playExplain(kid); };
     $('btn-ex-ok').onclick = function () {
       hideModal('modal-explain');
@@ -674,7 +717,10 @@
   /* ============ 衣柜 ============ */
   function renderWardrobe() {
     $('wd-points').textContent = S.points;
-    $('wd-tip').innerHTML = '用积分兑换装扮，点一下就能穿上或脱下。<br>积分来自答对题目与掌握知识点，彩蛋还会掉落限定装扮哦～';
+    $('wd-tip').innerHTML = '点一下装备就能穿上或脱下，左边的小人马上换好。<br>积分来自答对题目和掌握知识点，彩蛋还会掉落限定装扮～';
+
+    var pv = $('wd-preview');
+    if (pv) pv.innerHTML = Avatar.svg(S.gender || 'boy', S.worn, { cls: 'avatar-svg' });
 
     var grid = $('wd-grid');
     grid.innerHTML = '';
@@ -685,14 +731,15 @@
       cell.className = 'wd-cell' + (owned ? '' : ' locked') + (on ? ' on' : '');
       cell.innerHTML =
         (owned ? '' : '<div class="wd-lock">🔒</div>') +
-        '<div class="wd-emoji">' + o.emoji + '</div>' +
-        '<div class="wd-name">' + o.name + '</div>' +
+        '<div class="wd-icon-box">' + Avatar.itemIcon(o.id) + '</div>' +
+        '<div class="wd-name">' + esc(o.name) + '</div>' +
+        '<div class="wd-slot">' + esc(SLOT_NAME[o.slot] || o.slot) + '</div>' +
         (owned ? (on ? '<div class="wd-cost">穿着中</div>' : '<div class="wd-cost">点我穿上</div>')
                : '<div class="wd-cost">⭐ ' + o.cost + '</div>');
       cell.onclick = function () {
         if (owned) {
           if (S.worn[o.slot] === o.id) { delete S.worn[o.slot]; toast('脱下了' + o.name); }
-          else { S.worn[o.slot] = o.id; toast('穿上了' + o.name + ' ' + o.emoji); }
+          else { S.worn[o.slot] = o.id; toast('穿上了' + o.name); }
           save(); renderWardrobe(); renderStage();
         } else {
           if (S.points < o.cost) { toast('还差 ' + (o.cost - S.points) + ' 分，再练几题吧～'); return; }
@@ -709,6 +756,8 @@
       grid.appendChild(cell);
     });
   }
+
+  var SLOT_NAME = { hat: '帽子', eyes: '眼镜', top: '上衣', bottom: '裤子', shoes: '鞋', back: '背包', hand: '手持' };
 
   /* ============ 支付 ============ */
   function openPay() {
@@ -758,6 +807,7 @@
 
     $('btn-report-back').onclick = function () { renderHome(); showPage('page-home'); };
     $('btn-wardrobe-back').onclick = function () { renderHome(); showPage('page-home'); };
+    $('btn-change-avatar').onclick = function () { openChoose('wardrobe'); };
 
     $('btn-share').onclick = function () {
       var url = location.href;
@@ -776,6 +826,28 @@
     ['modal-reward', 'modal-pay', 'modal-confirm'].forEach(function (id) {
       $(id).addEventListener('click', function (e) { if (e.target === this) hideModal(id); });
     });
+  }
+
+  /* ============ 选择小伙伴（首次进入 / 衣柜里可重选）============ */
+  var chooseFrom = null;
+  function openChoose(from) {
+    chooseFrom = from || null;
+    var box = $('choose-grid');
+    box.innerHTML = '';
+    ['boy', 'girl'].forEach(function (g) {
+      var card = document.createElement('button');
+      card.className = 'choose-card' + (S.gender === g ? ' picked' : '');
+      card.innerHTML = Avatar.svg(g, {}, { cls: 'avatar-svg' }) +
+        '<div class="choose-name">' + (g === 'boy' ? '我是小男孩' : '我是小女孩') + '</div>';
+      card.onclick = function () {
+        S.gender = g; save();
+        if (chooseFrom === 'wardrobe') { renderWardrobe(); showPage('page-wardrobe'); }
+        else { renderHome(); showPage('page-home'); }
+        toast('你好呀，' + (g === 'boy' ? '小勇士！' : '小公主！'));
+      };
+      box.appendChild(card);
+    });
+    showPage('page-choose');
   }
 
   /* ============ 启动 ============ */
@@ -797,6 +869,9 @@
     } catch (e) { }
 
     renderHome();
+
+    // 首次使用：先选小男孩还是小女孩
+    if (!S.gender) openChoose(null);
 
     // 免费额度用完后，首页主按钮依然可用，但会引导开通
     console.log('%c拼音小达人 已就绪', 'color:#6C5CE7;font-weight:bold');

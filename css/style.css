@@ -108,30 +108,22 @@ input{font-family:inherit}
 .stage-wrap{margin:6px 0 4px;display:flex;flex-direction:column;align-items:center}
 .stage{
   position:relative;
-  width:230px;height:250px;
+  width:236px;height:308px;   /* 与全身像 160:262 同比例 */
   background:radial-gradient(circle at 50% 42%,#FFFFFF 0%,#F0EDFF 68%,#E4DFFF 100%);
   border-radius:34px;
   box-shadow:var(--shadow), inset 0 0 0 3px #fff;
-  display:flex;align-items:center;justify-content:center;
+  display:flex;align-items:flex-end;justify-content:center;
   overflow:hidden;
+  padding-bottom:2px;
   animation:floaty 4.2s ease-in-out infinite;
 }
 @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
 .stage::after{
   content:"";position:absolute;left:0;right:0;bottom:0;height:44px;
   background:linear-gradient(180deg,rgba(162,155,254,0) 0%,rgba(162,155,254,.22) 100%);
+  pointer-events:none;
 }
-.av{position:absolute;line-height:1;user-select:none;pointer-events:none}
-.av-face{font-size:96px;z-index:3;filter:drop-shadow(0 6px 8px rgba(34,36,58,.12))}
-.av-hat{font-size:46px;top:24px;z-index:5}
-.av-eyes{font-size:38px;top:96px;z-index:6}
-/* 上衣 / 裤子 / 配饰 / 手持物 摆在形象下方的"换装台"上 */
-.av-bottom{font-size:38px;bottom:16px;left:16px;z-index:5}
-.av-top{font-size:38px;bottom:16px;left:60px;z-index:5}
-.av-acc{font-size:34px;bottom:19px;right:18px;z-index:5}
-.av-prop{font-size:36px;top:14px;right:16px;z-index:7;animation:wave 2.2s ease-in-out infinite}
-@keyframes wave{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
-.av:empty{display:none}
+.avatar-svg{width:100%;height:100%;display:block}
 .stage-name{
   margin-top:12px;font-size:15px;font-weight:800;color:var(--brand);
   background:#fff;padding:7px 18px;border-radius:999px;box-shadow:0 2px 10px rgba(108,92,231,.12);
@@ -236,18 +228,33 @@ input{font-family:inherit}
 .plus-minus{display:flex;justify-content:space-between;font-size:13px;color:var(--ink2);margin-top:8px}
 
 /* ---------- 衣柜 ---------- */
-.wd-tip{font-size:14px;color:var(--ink2);text-align:center;padding:2px 0 14px}
+.wd-top{display:flex;gap:14px;align-items:stretch;margin-bottom:14px}
+.wd-preview{
+  flex:none;width:132px;height:180px;border-radius:22px;
+  background:radial-gradient(circle at 50% 42%,#FFFFFF 0%,#F0EDFF 70%,#E4DFFF 100%);
+  box-shadow:var(--shadow), inset 0 0 0 3px #fff;
+  overflow:hidden;display:flex;align-items:flex-end;justify-content:center;
+}
+.wd-preview .avatar-svg{width:100%;height:100%}
+.wd-side{flex:1;display:flex;flex-direction:column;gap:10px;justify-content:center}
+.wd-side .btn{font-size:14px;padding:11px 12px}
+.wd-tip{font-size:13px;color:var(--ink2);line-height:1.7;text-align:left}
 .wd-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px}
 .wd-cell{
-  background:var(--card);border-radius:20px;padding:14px 8px;text-align:center;
+  background:var(--card);border-radius:20px;padding:12px 8px 10px;text-align:center;
   box-shadow:0 2px 12px rgba(108,92,231,.09);position:relative;
   border:3px solid transparent;transition:transform .12s;
 }
 .wd-cell:active{transform:scale(.96)}
 .wd-cell.locked{opacity:.55;filter:grayscale(1)}
 .wd-cell.on{border-color:var(--brand);background:#F6F4FF}
-.wd-emoji{font-size:36px;line-height:1.2}
-.wd-name{font-size:12px;color:var(--ink2);margin-top:8px;font-weight:700}
+.wd-icon-box{
+  height:62px;display:flex;align-items:center;justify-content:center;
+  background:#FBFAFF;border-radius:14px;
+}
+.wd-icon{width:56px;height:56px;display:block}
+.wd-name{font-size:12px;color:var(--ink);margin-top:7px;font-weight:700}
+.wd-slot{font-size:10px;color:#A9A6C0;margin-top:2px}
 .wd-lock{position:absolute;top:8px;right:9px;font-size:13px}
 .wd-cost{font-size:11px;color:#E0930A;margin-top:4px;font-weight:700}
 
@@ -266,13 +273,43 @@ input{font-family:inherit}
   animation:boxIn .28s cubic-bezier(.2,1.3,.5,1) both;
 }
 @keyframes boxIn{from{opacity:0;transform:scale(.86) translateY(10px)}to{opacity:1;transform:none}}
+.modal-box h3{font-size:21px;margin-bottom:6px}
 .modal-emoji{font-size:52px;line-height:1;margin-bottom:10px;animation:bounceY 1.1s ease-in-out infinite}
 @keyframes bounceY{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
-.modal-box h3{font-size:21px;margin-bottom:14px}
-.ex-text{
-  background:#F7F6FF;border-radius:18px;padding:16px;text-align:left;
-  font-size:16px;line-height:1.85;color:#4A4F6A;white-space:pre-wrap;margin-bottom:16px;
+/* ---------- 讲解弹窗（图文）---------- */
+.ex-head{text-align:center;margin-bottom:12px}
+.ex-tag{
+  display:inline-block;background:#F0EEFB;color:var(--brand);
+  font-size:12px;font-weight:800;padding:4px 12px;border-radius:999px;margin-bottom:8px;
 }
+.ex-head h3{font-size:20px;line-height:1.4}
+.ex-body{background:#F7F6FF;border-radius:20px;padding:12px 12px 14px;margin-bottom:14px;text-align:left}
+.ex-illus{background:#fff;border-radius:14px;padding:4px 2px}
+.ex-illus .illus{width:100%;height:auto;display:block}
+.ex-one{font-size:15px;line-height:1.75;color:#4A4F6A;padding:11px 4px 2px}
+.ex-key{
+  display:flex;align-items:flex-start;gap:9px;
+  background:linear-gradient(135deg,#FFF6D9,#FFE9B0);
+  border-radius:14px;padding:11px 13px;margin:11px 0 0;
+  font-size:14.5px;font-weight:700;color:#8A5E00;line-height:1.6;
+}
+.ex-key-badge{
+  flex:none;background:#F5A623;color:#fff;font-size:11px;font-weight:800;
+  padding:3px 8px;border-radius:999px;margin-top:2px;
+}
+.ex-pairs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px}
+.ex-pair{
+  background:#fff;border-radius:12px;padding:9px 6px;text-align:center;
+  border:2px solid #ECEAF6;
+}
+.ex-pair b{display:block;font-size:20px;color:var(--ink)}
+.ex-pair span{display:block;font-size:13px;color:var(--brand);font-weight:700;margin-top:2px}
+.ex-warn{
+  display:flex;gap:8px;align-items:flex-start;
+  background:#FFF1F2;border-radius:14px;padding:11px 13px;margin-top:11px;
+  font-size:13.5px;color:#C2404A;line-height:1.6;font-weight:600;
+}
+.ex-warn-ico{flex:none;font-size:15px}
 .modal-box .btn{margin-top:10px}
 .price{font-size:38px;font-weight:800;color:var(--coral);margin:6px 0 14px}
 .price span{font-size:14px;color:var(--ink2);font-weight:600}
@@ -315,10 +352,22 @@ input{font-family:inherit}
 @media (max-height:680px){
   .q-word{font-size:104px}
   .q-word.long{font-size:64px}
-  .stage{width:196px;height:214px}
-  .av-face{font-size:80px}
-  .av-hat{font-size:42px;top:22px}
-  .av-eyes{font-size:34px;top:76px}
-  .av-top{font-size:48px;top:108px}
-  .av-bottom{font-size:38px;top:154px}
+  .stage{width:206px;height:269px}
 }
+
+/* ---------- 选择小伙伴 ---------- */
+.choose-hero{text-align:center;padding:26px 0 6px}
+.choose-hero .choose-emoji{font-size:56px;line-height:1;animation:bounceY 1.2s ease-in-out infinite}
+.choose-hero h2{font-size:23px;margin-top:10px}
+.choose-hero p{font-size:14px;color:var(--ink2);margin-top:6px}
+.choose-grid{display:flex;gap:14px;margin-top:18px}
+.choose-card{
+  flex:1;background:var(--card);border-radius:26px;padding:14px 10px 18px;
+  box-shadow:var(--shadow);border:3px solid transparent;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  transition:transform .12s;
+}
+.choose-card:active{transform:scale(.97)}
+.choose-card.picked{border-color:var(--brand);background:#F6F4FF}
+.choose-card .avatar-svg{width:132px;height:216px}
+.choose-name{font-size:16px;font-weight:800;color:var(--brand)}

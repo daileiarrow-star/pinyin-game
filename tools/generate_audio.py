@@ -34,9 +34,13 @@ E_RATE = '-8%'                   # 讲解语速
 NODE_SNIPPET = """
 const fs=require('fs'),path=require('path');
 const root=process.argv[process.argv.length-1];
-const code=fs.readFileSync(path.join(root,'js','data.js'),'utf8');
-const api=new Function(code+'\\n;return {QUESTIONS};')();
-process.stdout.write(JSON.stringify(api.QUESTIONS));
+const read=f=>fs.readFileSync(path.join(root,'js',f),'utf8');
+const code=read('data.js')+'\\n'+read('questions.js');
+const api=new Function(code+'\\n;return {QUESTIONS,EXPLANATIONS,explainSpeech};')();
+const out={q:[],e:[]};
+api.QUESTIONS.forEach(q=>out.q.push({id:q.id,text:q.content}));
+Object.keys(api.EXPLANATIONS).forEach(kid=>out.e.push({id:kid,text:api.explainSpeech(kid)}));
+process.stdout.write(JSON.stringify(out));
 """
 
 KEEP = re.compile(r'[\u4e00-\u9fff\u3000-\u303f0-9a-zA-Z，。！？、：；（）《》—…·%,.!?;:()\[\]\-]')
@@ -61,51 +65,44 @@ async def synth(text, out_path, rate, sem):
                 await asyncio.sleep(1.2 * (attempt + 1))
 
 async def main():
-    # 题库
+    # 题库 + 讲解朗读稿（与 app.js 的 explainSpeech 完全同源）
     try:
         out = subprocess.run(['node', '-e', NODE_SNIPPET, ROOT],
                              capture_output=True, text=True, encoding='utf-8', check=True)
-        questions = json.loads(out.stdout)
+        payload = json.loads(out.stdout)
     except FileNotFoundError:
         print('未找到 node，请先安装 Node.js')
         sys.exit(1)
     except subprocess.CalledProcessError as e:
-        print('读取 data.js 失败：', e.stderr)
+        print('读取题库失败：', e.stderr)
         sys.exit(1)
 
-    # 讲解文案（从 data.js 的 EXPLANATIONS 里解析）
-    datajs = open(os.path.join(ROOT, 'js', 'data.js'), encoding='utf-8').read()
-    m = re.search(r'const EXPLANATIONS = \{(.*?)\n\};', datajs, re.S)
-    explanations = {}
-    if m:
-        for km in re.finditer(
-                r"(\w+):\s*\{\s*title:\s*'([^']*)',\s*text:\s*'((?:[^'\\]|\\.)*)'\s*\}", m.group(1)):
-            explanations[km.group(1)] = {
-                'title': km.group(2),
-                'text': km.group(3).replace('\\n', '\n').replace("\\'", "'"),
-            }
+    questions = payload['q']
+    explanations = {x['id']: x['text'] for x in payload['e']}
     if not explanations:
-        print('⚠️  没能解析出讲解文案，请检查 data.js 里 EXPLANATIONS 的写法')
+        print('⚠️  没有拿到讲解朗读稿，请检查 data.js 里 explainSpeech()')
 
     qdir = os.path.join(ROOT, 'audio', 'q')
     edir = os.path.join(ROOT, 'audio', 'e')
     os.makedirs(qdir, exist_ok=True)
     os.makedirs(edir, exist_ok=True)
 
+    force = '--force' in sys.argv
+
     sem = asyncio.Semaphore(CONCURRENCY)
     tasks = []
 
     for q in questions:
         out = os.path.join(qdir, q['id'] + '.mp3')
-        if os.path.exists(out) and os.path.getsize(out) > 500:
+        if not force and os.path.exists(out) and os.path.getsize(out) > 500:
             continue
-        tasks.append(synth(q['content'], out, Q_RATE, sem))
+        tasks.append(synth(clean_for_tts(q['text']), out, Q_RATE, sem))
 
-    for kid, ex in explanations.items():
+    for kid, text in explanations.items():
         out = os.path.join(edir, kid + '.mp3')
-        if os.path.exists(out) and os.path.getsize(out) > 500:
+        if not force and os.path.exists(out) and os.path.getsize(out) > 500:
             continue
-        tasks.append(synth(clean_for_tts(ex['title'] + '。' + ex['text']), out, E_RATE, sem))
+        tasks.append(synth(clean_for_tts(text), out, E_RATE, sem))
 
     if not tasks:
         print('所有语音都已存在，无需生成。')

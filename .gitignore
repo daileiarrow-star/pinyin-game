@@ -10,3 +10,5 @@ desktop.ini
 # 语音生成时可能产生的中间文件
 tools/_dump.json
 tools/_*.mp3
+tools/_preview/
+node_modules/

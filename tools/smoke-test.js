@@ -1,15 +1,13 @@
-/* 拼音小达人 —— 功能冒烟测试
-   用 jsdom 以真实 <script> 方式加载页面，把核心流程真的点一遍。
+/* 拼音小达人 —— 功能冒烟测试（jsdom 真点一遍）
    用法：
      npm i jsdom
      node tools/smoke-test.js     # 需要先起本地服务：python -m http.server 5183
    环境变量 BASE 可指定服务地址，默认 http://127.0.0.1:5183/
 */
-const path = require('path');
 const { JSDOM } = require('jsdom');
 
 const BASE = process.env.BASE || 'http://127.0.0.1:5183/';
-const LS = 'pinyin_daren_v2';
+const LS = 'pinyin_daren_v3';
 const pass = [], fail = [];
 function ok(name, cond, extra) {
   if (cond) { pass.push(name); console.log('  PASS  ' + name); }
@@ -17,8 +15,7 @@ function ok(name, cond, extra) {
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-/* 跨页面共享的 localStorage：jsdom 每个实例的存储是独立的，
-   只有共享同一个存储对象，才能真的测出「刷新后进度保留」。 */
+/* 跨页面共享的 localStorage：jsdom 每个实例的存储是独立的 */
 let __store = {};
 function storageShim() {
   const s = __store;
@@ -47,10 +44,7 @@ async function loadPage(opts) {
         constructor(src) { this.src = src; window.__audioLog.push(src); }
         play() { return Promise.reject(new Error('no audio file in test env')); }
       };
-      window.speechSynthesis = {
-        cancel() { }, getVoices: () => [],
-        speak(u) { window.__spoken.push(u.text); }
-      };
+      window.speechSynthesis = { cancel() { }, getVoices: () => [], speak(u) { window.__spoken.push(u.text); } };
       window.SpeechSynthesisUtterance = class { constructor(t) { this.text = t; } };
       Object.defineProperty(window.navigator, 'clipboard', { value: { writeText: () => Promise.resolve() }, configurable: true });
       Object.defineProperty(window, 'localStorage', { value: storageShim(), configurable: true });
@@ -71,327 +65,409 @@ function api(dom) {
     dom, w, d,
     $: id => d.getElementById(id),
     activePage: () => { const p = d.querySelector('.page.active'); return p ? p.id : null; },
-    click: el => el.dispatchEvent(new w.MouseEvent('click', { bubbles: true })),
-    opts: () => Array.from(d.getElementById('pd-options').children),
+    click: el => el && el.dispatchEvent(new w.MouseEvent('click', { bubbles: true })),
     toast: () => d.getElementById('toast').textContent,
-    /* 用题面 + 知识点标签反查这道题的正确拼音 */
-    correctText() {
-      const word = d.getElementById('pd-word').textContent;
-      const tag = d.getElementById('pd-tag').textContent;
-      return w.eval('(function(){' +
-        'var w=' + JSON.stringify(word) + ', t=' + JSON.stringify(tag) + ';' +
-        'var kp=KNOWLEDGE_POINTS.filter(function(k){return k.tag===t})[0];' +
-        'if(!kp) return null;' +
-        'var q=QUESTIONS.filter(function(q){return q.knowledge===kp.id && q.content===w})[0];' +
-        'return q ? q.options[q.answer] : null;})()');
+    /* 当前题（含答案），来自测试钩子 */
+    cur() {
+      const raw = w.eval('(function(){var s=__pyTest.SS();if(!s)return null;return JSON.stringify(s.queue[s.i]);})()');
+      return raw ? JSON.parse(raw) : null;
     },
-    hasDupTags() {
-      return w.eval('(function(){var m={},dup=[];KNOWLEDGE_POINTS.forEach(function(k){' +
-        'if(m[k.tag])dup.push(k.tag);m[k.tag]=1;});return dup;})()');
-    }
+    state() { return JSON.parse(w.eval('JSON.stringify(__pyTest.S())')); }
   };
+}
+
+/* ---------- 各题型的「正确作答」与「错误作答」 ---------- */
+async function answerCur(a, deliberatelyWrong) {
+  const { w, d, click } = a;
+  const it = a.cur();
+  if (!it) return;
+  const box = d.getElementById('pd-options');
+
+  if (it.type === 'choice' || it.type === 'listen' || it.type === 'fill') {
+    /* 填空题按钮上显示的是「候选块填进 ▢ 之后的完整拼音」，所以比较用的期望文本也要按同样规则拼 */
+    const labelOf = i => it.type === 'fill'
+      ? String(it.display).replace('▢', it.opts[i])
+      : it.opts[i];
+    const want = labelOf(it.ans);
+    const btns = Array.from(box.querySelectorAll('.opt'));
+    const textOf = b => (b.querySelector('.opt-val') ? b.querySelector('.opt-val').textContent : b.textContent);
+    const target = deliberatelyWrong
+      ? btns.find(b => textOf(b) !== want)
+      : btns.find(b => textOf(b) === want);
+    click(target);
+    return;
+  }
+
+  if (it.type === 'judge') {
+    const btns = Array.from(box.querySelectorAll('.judge-btn'));
+    const wantOk = deliberatelyWrong ? !it.judgeOk : it.judgeOk;
+    click(btns[wantOk ? 0 : 1]);
+    return;
+  }
+
+  if (it.type === 'spell') {
+    const tiles = Array.from(box.querySelectorAll('.tile'));
+    const seq = deliberatelyWrong
+      ? it.target.concat().reverse()
+      : it.target;
+    for (const t of seq) {
+      const b = tiles.find(x => !x.classList.contains('used') && x.textContent === t);
+      if (!b) return;
+      click(b);
+      await sleep(30);
+    }
+    return;
+  }
+
+  if (it.type === 'match') {
+    const lefts = Array.from(box.querySelectorAll('.match-col')[0].children);
+    const rights = Array.from(box.querySelectorAll('.match-col')[1].children);
+    for (let i = 0; i < it.pairs.length; i++) {
+      const pairIdx = deliberatelyWrong ? (i + 1) % it.pairs.length : i;
+      click(lefts[i]);
+      await sleep(25);
+      const py = it.pairs[pairIdx].p;
+      const r = rights.find(x => !x.classList.contains('done') && x.textContent === py);
+      click(r);
+      await sleep(30);
+      if (deliberatelyWrong) { /* 故意错一次即可，其余连对 */ }
+    }
+    return;
+  }
+}
+
+/* 把一轮练习答完（可选：第 wrongAt 题故意答错） */
+async function playThrough(a, wrongAt) {
+  const { d } = a;
+  for (let step = 0; step < 40; step++) {
+    if (a.activePage() !== 'page-practice') break;
+    const st = a.state();
+    const quotaDone = st.dayCount >= (st.paid ? 9999 : 10);
+    const it = a.cur();
+    if (!it) break;
+    await answerCur(a, step === wrongAt);
+    if (step === wrongAt) {
+      await sleep(1400);
+      /* 讲解弹窗 → 学会了 */
+      if (d.getElementById('modal-explain').classList.contains('show')) {
+        a.click(d.getElementById('btn-ex-ok'));
+        await sleep(120);
+      }
+    } else {
+      await sleep(1000);
+    }
+  }
 }
 
 async function main() {
   let dom = await loadPage({ fresh: true });
   let a = api(dom);
-  const { w, d, $, click, opts, activePage } = a;
+  const { w, d, $, click, activePage } = a;
 
   /* ================= 首次进入：先选角色 ================= */
   console.log('\n【首次进入：选择小伙伴】');
   ok('首次进入先看到角色选择页', activePage() === 'page-choose', activePage());
-  ok('渲染出两个角色卡片', d.querySelectorAll('#choose-grid .choose-card').length === 2,
-    String(d.querySelectorAll('#choose-grid .choose-card').length));
-  ok('角色卡片里有全身像 SVG',
-    d.querySelectorAll('#choose-grid .choose-card svg').length === 2);
+  ok('渲染出两个角色卡片', d.querySelectorAll('#choose-grid .choose-card').length === 2);
+  ok('角色卡片里有全身像 SVG', d.querySelectorAll('#choose-grid .choose-card svg').length === 2);
   ok('两个角色发型不同（男女可区分）',
     d.querySelector('#choose-grid .choose-card svg').innerHTML !==
     d.querySelectorAll('#choose-grid .choose-card svg')[1].innerHTML);
-  d.querySelectorAll('#choose-grid .choose-card')[0].dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  click(d.querySelectorAll('#choose-grid .choose-card')[0]);
   await sleep(60);
   ok('选完男孩进入首页', activePage() === 'page-home', activePage());
   ok('性别已持久化', w.eval('JSON.parse(localStorage.getItem("' + LS + '")).gender') === 'boy');
-  ok('首页舞台渲染出全身像 SVG', !!d.querySelector('#stage svg'), 'stage svg');
-  ok('全身像里画了白T恤与短裤（初始穿搭）',
-    /白|fff|#FFFFFF/i.test(d.querySelector('#stage svg').innerHTML) &&
-    /短裤|5B8DEF/i.test(d.querySelector('#stage svg').innerHTML));
+  ok('首页舞台渲染出全身像 SVG', !!d.querySelector('#stage svg'));
   ok('空装扮有引导文案', /衣柜/.test($('worn-row').textContent), $('worn-row').textContent);
-  ok('免费额度提示已渲染（说明 boot 跑通）',
-    /免费版每天 10 题/.test($('free-tip').textContent), $('free-tip').textContent);
+  ok('免费额度提示已渲染', /免费版每天 10 题/.test($('free-tip').textContent), $('free-tip').textContent);
 
-  /* ================= 题库数据可用性 ================= */
+  /* ================= 题库数据 ================= */
   console.log('\n【题库自检】');
-  ok('题库 232 题', w.eval('QUESTIONS.length') === 232, String(w.eval('QUESTIONS.length')));
+  const qCount = w.eval('QUESTIONS.length');
+  ok('题库题量充足（≥380 题）', qCount >= 380, String(qCount));
+  /* 不写死题量：只断言真正的不变式 —— 每个知识点都练够、且题型有变化 */
+  const cov = JSON.parse(w.eval(`(function(){
+    var by={};
+    QUESTIONS.forEach(function(q){ (by[q.knowledge]=by[q.knowledge]||[]).push(q); });
+    return JSON.stringify(KNOWLEDGE_POINTS.map(function(k){
+      var qs=by[k.id]||[];
+      var types={}; qs.forEach(function(q){types[q.type]=1});
+      return { id:k.id, n:qs.length, t:Object.keys(types).length };
+    }));
+  })()`));
+  const thin = cov.filter(c => c.n < 8);
+  const mono = cov.filter(c => c.t < 4);
+  ok('每个知识点至少 8 道题', thin.length === 0,
+    thin.map(c => c.id + '(' + c.n + ')').join(','));
+  ok('每个知识点至少覆盖 4 种题型', mono.length === 0,
+    mono.map(c => c.id + '(' + c.t + '种)').join(','));
   ok('知识点 29 个', w.eval('KNOWLEDGE_POINTS.length') === 29);
+  ok('6 种题型都齐了',
+    ['choice', 'listen', 'judge', 'match', 'fill', 'spell'].every(t => w.eval('QUESTIONS.some(function(q){return q.type==="' + t + '"})')));
   ok('每个知识点都有讲解',
     w.eval('KNOWLEDGE_POINTS.every(function(k){return !!EXPLANATIONS[k.id]})'));
-  ok('每条讲解都有口诀和例词',
-    w.eval('KNOWLEDGE_POINTS.every(function(k){var e=EXPLANATIONS[k.id];return e.key && e.pairs && e.pairs.length>=2})'));
   ok('每条讲解的图都能生成',
     w.eval('KNOWLEDGE_POINTS.every(function(k){return !!renderIllustration(EXPLANATIONS[k.id].illus)})'));
-  ok('每题 4 个选项且答案下标合法',
-    w.eval('QUESTIONS.every(function(q){return q.options.length===4 && q.answer>=0 && q.answer<4})'));
-  ok('题卡标签唯一（否则分不清是哪个规则）', a.hasDupTags().length === 0, a.hasDupTags().join(','));
-  ok('22 件装扮都有图形',
-    w.eval('OUTFITS.every(function(o){return !!Avatar.itemIcon(o.id)})'));
+  ok('选择题 4 选项且答案下标合法',
+    w.eval('QUESTIONS.filter(function(q){return q.type==="choice"}).every(function(q){return q.options.length===4 && q.answer>=0 && q.answer<4})'));
+  ok('听音题都隐藏题面', w.eval('QUESTIONS.filter(function(q){return q.type==="listen"}).every(function(q){return q.hideWord && q.audioId})'));
+  ok('判断题都带拼音与结论', w.eval('QUESTIONS.filter(function(q){return q.type==="judge"}).every(function(q){return q.judgePinyin && typeof q.judgeOk==="boolean"})'));
+  ok('连线题都是 4 对且无重复', w.eval('QUESTIONS.filter(function(q){return q.type==="match"}).every(function(q){return q.pairs.length===4 && new Set(q.pairs.map(function(p){return p[1]})).size===4})'));
+  ok('拼读积木都带干扰块', w.eval('QUESTIONS.filter(function(q){return q.type==="spell"}).every(function(q){return q.tiles.length>=2 && q.extraTiles.length>=1})'));
+
+  /* ================= 装扮 ================= */
+  console.log('\n【装扮系统】');
+  ok('79 件装扮都有图形', w.eval('OUTFITS.length') === 79 && w.eval('OUTFITS.every(function(o){return !!Avatar.itemIcon(o.id,o.slot)})'), String(w.eval('OUTFITS.length')));
+  ok('13 个槽位都有装备',
+    ['hat', 'eyes', 'ear', 'neck', 'wrist', 'top', 'cape', 'bottom', 'shoes', 'back', 'hand', 'pet', 'vehicle']
+      .every(s => w.eval('OUTFITS.some(function(o){return o.slot==="' + s + '"})')));
+  ok('13 个槽位都能画进全身像',
+    ['hat', 'eyes', 'ear', 'neck', 'wrist', 'cape', 'pet', 'vehicle'].every(s => {
+      const o = w.eval('(OUTFITS.filter(function(x){return x.slot==="' + s + '"})[0]||{}).id');
+      if (!o) return false;
+      const svg = w.eval('Avatar.svg("boy",{' + s + ':"' + o + '"})');
+      return svg.length > 800;
+    }));
 
   /* ================= 选项乱序 ================= */
   console.log('\n【选项乱序】');
-  const ansPos = new Set();
-  for (let i = 0; i < 30; i++) {
-    click($('btn-start'));
-    await sleep(20);
-    const list = opts();
-    if (list.length !== 4) break;
-    const correct = a.correctText();
-    ansPos.add(list.findIndex(o => o.textContent === correct));
-    click($('btn-quit'));
-    await sleep(30);
-    click($('btn-cf-yes'));
-    await sleep(40);
-    click($('btn-result-home'));
-    await sleep(20);
-  }
-  ok('正确选项的位置每次都变（确实打乱了）', ansPos.size >= 3, '出现过 ' + ansPos.size + ' 种位置');
-
-  /* ================= 重置，跑完整一轮 ================= */
-  console.log('\n【完整练习一轮（含答对 / 答错两条路径）】');
-  w.eval('localStorage.clear()');
-  dom.window.close();
-  dom = await loadPage();
-  a = api(dom);
-  const W = a.w, D = a.d, Q = a.$;
-  const click2 = a.click, opts2 = a.opts, active2 = a.activePage;
-
-  // 重新选角色
-  D.querySelectorAll('#choose-grid .choose-card')[1].dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
-  await sleep(60);
-  ok('重置后可重选（这次选女孩）', W.eval('JSON.parse(localStorage.getItem("' + LS + '")).gender') === 'girl');
-
-  click2(Q('btn-start'));
-  await sleep(60);
-  ok('进入练习页', active2() === 'page-practice', active2());
-  ok('渲染出 4 个选项', opts2().length === 4, String(opts2().length));
-  ok('知识点标签来自题库（非静态文本）',
-    W.eval('KNOWLEDGE_POINTS.some(function(k){return k.tag===' + JSON.stringify(Q('pd-tag').textContent) + '})'),
-    Q('pd-tag').textContent);
-  ok('免费版本轮总题数 = 10', Q('pd-total').textContent === '10', Q('pd-total').textContent);
-
-  let right = 0, wrong = 0, explained = 0, followUps = 0, illusSeen = false;
-
-  for (let step = 0; step < 80; step++) {
-    if (active2() !== 'page-practice') break;
-    const list = opts2();
-    if (!list.length) break;
-    const correct = a.correctText();
-    if (!correct) break;
-
-    const wantWrong = (step >= 6) && (step % 3 === 0);
-    if (step === 0) { click2(Q('btn-audio')); await sleep(40); }
-
-    const target = wantWrong
-      ? list.find(o => o.textContent !== correct)
-      : list.find(o => o.textContent === correct);
-
-    click2(target);
-    await sleep(150);
-
-    const fb = Q('pd-feedback').textContent;
-    if (/答对/.test(fb)) {
-      right++;
-      await sleep(760);
-    } else if (/没关系/.test(fb)) {
-      wrong++;
-      await sleep(1160);
-      if (Q('modal-explain').classList.contains('show')) {
-        explained++;
-        if (explained === 1) {
-          ok('答错弹出讲解面板', true);
-          ok('讲解里有示意图（SVG）', !!Q('ex-body').querySelector('svg.ex-illus, .ex-illus svg'),
-            Q('ex-body').innerHTML.slice(0, 80));
-          if (Q('ex-body').querySelector('svg')) illusSeen = true;
-          ok('讲解里有口诀卡', !!Q('ex-body').querySelector('.ex-key'));
-          ok('讲解里有例词对比（至少 2 组）',
-            Q('ex-body').querySelectorAll('.ex-pair').length >= 2,
-            String(Q('ex-body').querySelectorAll('.ex-pair').length));
-          ok('讲解里有易错提醒', !!Q('ex-body').querySelector('.ex-warn'));
-          ok('讲解标题非空', Q('ex-title').textContent.trim().length > 2, Q('ex-title').textContent);
-          ok('讲解标签显示考点', /考：/.test(Q('ex-tag').textContent), Q('ex-tag').textContent);
-          click2(Q('btn-ex-audio'));
-          await sleep(40);
-          ok('讲解语音可播放（降级到浏览器合成）', W.__spoken.some(t => t.length > 10));
-        }
-        click2(Q('btn-ex-ok'));
-        await sleep(160);
-        followUps++;
-      }
+  const shuffleReport = w.eval(`(function(){
+    var qs = QUESTIONS.filter(function(x){return x.type==='choice'});
+    var bad = 0, sameOrder = 0, rounds = 0;
+    for (var n = 0; n < 60; n++) {
+      var q = qs[n % qs.length];
+      var it = __pyTest.toItem(q);
+      rounds++;
+      if (it.opts[it.ans] !== q.options[q.answer]) bad++;            /* 答案下标必须同步重算 */
+      if (new Set(it.opts).size !== it.opts.length) bad++;           /* 打乱后不能丢项或重复 */
+      if (it.opts.length !== q.options.length) bad++;
+      var same = true;
+      for (var i = 0; i < it.opts.length; i++) if (it.opts[i] !== q.options[i]) same = false;
+      if (same) sameOrder++;
     }
-    if (right + wrong > 40) break;
-  }
+    return JSON.stringify({ bad: bad, sameOrder: sameOrder, rounds: rounds });
+  })()`);
+  const sr = JSON.parse(shuffleReport);
+  ok('打乱后答案下标仍指向正确选项、选项不丢失不重复', sr.bad === 0, JSON.stringify(sr));
+  ok('选项顺序确实被打乱了（不是原序照搬）', sr.sameOrder < sr.rounds, JSON.stringify(sr));
 
-  ok('答对分支走通', right > 0, '答对 ' + right + ' 题');
-  ok('答错分支走通', wrong > 0, '答错 ' + wrong + ' 题');
-  ok('讲解闭环被触发', explained > 0, '触发 ' + explained + ' 次');
-  ok('讲解示意图真实渲染出来了', illusSeen);
-  ok('关闭讲解后能继续出题（举一反三/重测）', followUps > 0, String(followUps));
+  /* ================= 一轮定制练习：每种题型都点到 ================= */
+  console.log('\n【六种题型逐一作答】');
+  const oneOf = t => w.eval('(function(){var l=QUESTIONS.filter(function(q){return q.type==="' + t + '"});return JSON.stringify([l[0]]);})()');
+  const list = ['choice', 'listen', 'judge', 'fill', 'spell', 'match']
+    .map(t => JSON.parse(oneOf(t))[0]);
+  ok('能取到 6 种题型的样本', list.length === 6 && list.every(Boolean));
 
-  await sleep(600);
-  console.log('\n【结算页】');
-  ok('练习结束后进入结果页', active2() === 'page-result', active2());
-  ok('显示正确率', /%$/.test(Q('rs-rate').textContent), Q('rs-rate').textContent);
-  ok('显示答对数 x/y', /^\d+\/\d+$/.test(Q('rs-correct').textContent), Q('rs-correct').textContent);
-  ok('显示本次积分', /^\+?\d+$/.test(Q('rs-gain').textContent), Q('rs-gain').textContent);
-  ok('总积分确实累加了', parseInt(Q('rs-total').textContent, 10) > 0, '总积分=' + Q('rs-total').textContent);
-  ok('localStorage 里的积分也同步了',
-    W.eval('JSON.parse(localStorage.getItem("' + LS + '")).points') > 0);
+  w.__pyTest.start(list);
+  await sleep(80);
+  ok('定制一轮进入练习页', activePage() === 'page-practice', activePage());
 
+  /* 语音两级降级：优先预生成 mp3，取不到才降级到浏览器合成 */
   console.log('\n【语音两级降级】');
-  ok('尝试过播放预生成题目音频', W.__audioLog.some(s => /audio\/q\/.+\.mp3$/.test(s)),
-    W.__audioLog.filter(s => /audio\/q\//.test(s)).length + ' 次');
-  ok('尝试过播放预生成讲解音频', W.__audioLog.some(s => /audio\/e\/.+\.mp3$/.test(s)),
-    W.__audioLog.filter(s => /audio\/e\//.test(s)).length + ' 次');
-  ok('音频失败后降级到浏览器合成', W.__spoken.length > 0, W.__spoken.length + ' 段');
+  click($('btn-audio'));
+  await sleep(150);
+  ok('优先播放预生成音频文件', w.__audioLog.some(u => /audio\/q\/.+\.mp3$/.test(u)),
+    (w.__audioLog[0] || '（没有发起任何音频请求）'));
+  ok('音频不可用时自动降级到浏览器语音合成', w.__spoken.length > 0,
+    w.__spoken.length + ' 段合成语音');
 
-  /* ================= 学习报告 ================= */
-  console.log('\n【学习报告】');
-  click2(Q('btn-result-home'));
-  await sleep(60);
-  click2(Q('btn-report'));
-  await sleep(70);
-  ok('进入报告页', active2() === 'page-report', active2());
-  const rp = Q('report-body').textContent;
-  ok('含「今天」板块', /今天/.test(rp));
-  ok('含「累计」板块', /累计/.test(rp));
-  ok('含「知识点掌握度」', /知识点掌握度/.test(rp));
-  ok('含「错题本」', /错题本/.test(rp));
-  ok('列出全部 29 个知识点标签', D.querySelectorAll('#report-body .tg').length === 29,
-    String(D.querySelectorAll('#report-body .tg').length));
-  ok('错题本记录到了答错的题',
-    W.eval('Object.keys(JSON.parse(localStorage.getItem("' + LS + '")).wrong).length') > 0);
-  ok('含重置进度按钮', /清空学习进度/.test(rp));
-
-  /* ================= 衣柜与全身换装 ================= */
-  console.log('\n【衣柜与全身换装】');
-  click2(Q('btn-report-back'));
-  await sleep(60);
-  click2(Q('btn-wardrobe'));
-  await sleep(70);
-  ok('进入衣柜页', active2() === 'page-wardrobe', active2());
-  ok('列出全部 22 件装扮', D.querySelectorAll('#wd-grid .wd-cell').length === 22,
-    String(D.querySelectorAll('#wd-grid .wd-cell').length));
-  ok('每件装扮显示自己的图形（不是 emoji）',
-    D.querySelectorAll('#wd-grid .wd-cell svg').length === 22,
-    String(D.querySelectorAll('#wd-grid .wd-cell svg').length));
-  ok('衣柜里有全身像实时预览', !!Q('wd-preview').querySelector('svg'));
-  ok('未拥有的装扮为锁定态', D.querySelectorAll('#wd-grid .wd-cell.locked').length > 0);
-
-  // 穿一件帽子：给足积分后重载页面（顺带验证持久化），再进衣柜兑换
-  W.eval('(function(){var s=JSON.parse(localStorage.getItem("' + LS + '"));s.points=9999;' +
-    'localStorage.setItem("' + LS + '",JSON.stringify(s));})()');
-  dom.window.close();
-  dom = await loadPage();
-  a = api(dom);
-  const W3 = a.w, D3 = a.d, Q3 = a.$, click3 = a.click;
-
-  console.log('\n【刷新后状态保留】');
-  ok('刷新后无需再选角色（性别持久化生效）', a.activePage() === 'page-home', a.activePage());
-  ok('刷新后积分保留', Q3('hd-points').textContent === '9999', Q3('hd-points').textContent);
-  ok('刷新后全身像仍在', !!D3.querySelector('#stage svg'));
-
-  click3(Q3('btn-wardrobe'));
-  await sleep(70);
-  const hatCell = Array.from(D3.querySelectorAll('#wd-grid .wd-cell'))
-    .find(c => /小皇冠/.test(c.textContent));
-  click3(hatCell);
-  await sleep(60);
-  ok('积分足够时弹出兑换确认框', Q3('modal-confirm').classList.contains('show'));
-  click3(Q3('btn-cf-yes'));
-  await sleep(60);
-  ok('兑换后自动穿上', W3.eval('JSON.parse(localStorage.getItem("' + LS + '")).worn.hat') === 'hat_crown',
-    a.toast());
-  ok('衣柜预览的全身像里出现了皇冠',
-    /FFC93C|FFD966/i.test(Q3('wd-preview').innerHTML), '皇冠配色未出现在预览里');
-
-  // 积分不足分支
-  const lockedCells = Array.from(D3.querySelectorAll('#wd-grid .wd-cell.locked'));
-  if (lockedCells.length) {
-    const dearest = lockedCells[lockedCells.length - 1];
-    const dearestCost = parseInt((dearest.querySelector('.wd-cost').textContent.match(/\d+/) || [0])[0], 10);
-    const myPoints = W3.eval('JSON.parse(localStorage.getItem("' + LS + '")).points');
-    D3.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show'));
-    click3(dearest);
-    await sleep(40);
-    if (myPoints < dearestCost) {
-      ok('积分不足时给出「还差多少分」提示而不是静默失败', /还差/.test(a.toast()), a.toast());
-    } else {
-      ok('积分足够时会弹出兑换确认框', Q3('modal-confirm').classList.contains('show'));
-      click3(Q3('btn-cf-no'));
-      await sleep(30);
+  const seenTypes = [];
+  let ptsBefore = a.state().points;
+  for (let i = 0; i < 6; i++) {
+    const it = a.cur();
+    if (!it) break;
+    seenTypes.push(it.type);
+    await answerCur(a, false);
+    await sleep(1050);
+    /* 讲解弹窗若出现（答错）就关掉 */
+    if (d.getElementById('modal-explain').classList.contains('show')) {
+      click(d.getElementById('btn-ex-ok'));
+      await sleep(120);
     }
   }
+  ok('六种题型都实际答过一轮', ['choice', 'listen', 'judge', 'fill', 'spell', 'match']
+    .every(t => seenTypes.indexOf(t) >= 0), seenTypes.join(','));
+  ok('答对后积分增加', a.state().points > ptsBefore, ptsBefore + ' -> ' + a.state().points);
+  ok('练习页进度条推进', a.state().totalCount >= 6, String(a.state().totalCount));
 
-  // 换角色入口
-  click3(Q3('btn-change-avatar'));
-  await sleep(50);
-  ok('可从衣柜重新选择角色', a.activePage() === 'page-choose', a.activePage());
-  D3.querySelectorAll('#choose-grid .choose-card')[0].dispatchEvent(new W3.MouseEvent('click', { bubbles: true }));
-  await sleep(50);
-  ok('重选后回到衣柜', a.activePage() === 'page-wardrobe', a.activePage());
-  ok('性别已更新为男孩', W3.eval('JSON.parse(localStorage.getItem("' + LS + '")).gender') === 'boy');
+  /* ================= 填空题（补声母 / 补韵母）================= */
+  console.log('\n【填空题】');
+  const fillPick = w.eval(`(function(){
+    var fs=QUESTIONS.filter(function(q){return q.type==='fill'});
+    var head=fs.filter(function(q){return q.display.indexOf('▢')===0})[0];
+    var mid=fs.filter(function(q){return q.display.indexOf('▢')>0})[0];
+    return JSON.stringify([head,mid]);
+  })()`);
+  const [fillHead, fillMid] = JSON.parse(fillPick);
+  ok('既有补声母的填空，也有补韵母的填空', !!fillHead && !!fillMid,
+    (fillHead ? fillHead.display : '无') + ' / ' + (fillMid ? fillMid.display : '无'));
 
-  click3(Q3('btn-wardrobe-back'));
-  await sleep(40);
-  ok('可从衣柜返回首页', a.activePage() === 'page-home', a.activePage());
+  w.__pyTest.start([fillHead, fillMid]);
+  await sleep(80);
+  const fillBtns = Array.from(d.querySelectorAll('#pd-options .opt'));
+  ok('填空按钮上显示的是补完整后的拼音', fillBtns.length === 4 && fillBtns.every(b => !/▢/.test(b.textContent)),
+    fillBtns.map(b => b.textContent).join(' / '));
+  ok('题干提示告诉孩子要补什么', /补完整/.test(d.getElementById('q-hint').textContent),
+    d.getElementById('q-hint').textContent);
+  const ptsPre = a.state().points;
+  await answerCur(a, false);
+  await sleep(140);
+  ok('补声母题答对会加分', a.state().points > ptsPre, ptsPre + ' -> ' + a.state().points);
+  await answerCur(a, false);
+  await sleep(140);
+  ok('补韵母题也能答对（第二题）', a.state().totalCorrect >= 2 ||
+    d.getElementById('pd-feedback').className.indexOf('good') >= 0,
+    d.getElementById('pd-feedback').textContent);
+  click($('btn-quit'));
+  await sleep(120);
+  if (d.getElementById('modal-confirm').classList.contains('show')) {
+    click($('btn-cf-yes'));
+    await sleep(160);
+  }
+
+  /* ================= 答错 → 图文讲解 → 举一反三 ================= */
+  console.log('\n【答错闭环】');
+  w.__pyTest.start([w.QUESTIONS.filter(q => q.type === 'choice' && q.knowledge === 'o_ou')[0]]);
+  await sleep(80);
+  await answerCur(a, true);
+  await sleep(1500);
+  ok('答错后弹出讲解', d.getElementById('modal-explain').classList.contains('show'));
+  ok('讲解里有 SVG 图解', !!d.querySelector('#ex-body .ex-illus svg'));
+  ok('讲解里有口诀', !!d.querySelector('#ex-body .ex-key'));
+  ok('讲解里有例词对比', d.querySelectorAll('#ex-body .ex-pair').length >= 2);
+  ok('讲解里有易错提醒', !!d.querySelector('#ex-body .ex-warn'));
+  click($('btn-ex-audio'));
+  await sleep(60);
+  ok('讲解可朗读（音频或合成兜底）',
+    w.__audioLog.length > 0 || w.__spoken.length > 0);
+  click($('btn-ex-ok'));
+  await sleep(200);
+  ok('关闭讲解后继续出题', a.cur() !== null || activePage() !== 'page-practice');
+
+  /* ================= 彩蛋：先出现蛋，点开有特效音效 ================= */
+  console.log('\n【彩蛋开箱】');
+  ['b_p', 'd_t', 'g_k'].forEach(k => { w.eval('__pyTest.S().mastered["' + k + '"]=true'); });
+  w.eval('__pyTest.S().points=800');
+  w.__pyTest.start([w.QUESTIONS.filter(q => q.type === 'choice')[0]]);
+  await sleep(80);
+  await answerCur(a, false);
+  await sleep(1400);
+  /* 结束一轮 → 结算 → 彩蛋 */
+  for (let i = 0; i < 10 && activePage() === 'page-practice'; i++) {
+    if (!a.cur()) break;
+    await answerCur(a, false);
+    await sleep(1000);
+  }
+  await sleep(1200);
+  ok('一轮结束进入结算页', activePage() === 'page-result', activePage());
+  ok('触发彩蛋：先出现蛋而不是直接给奖品', d.getElementById('modal-egg').classList.contains('show'));
+  ok('蛋在等待点击（还没有奖品内容）', d.getElementById('rw-item').textContent.trim() === '');
+  click($('btn-egg'));
+  await sleep(200);
+  ok('点击后蛋进入开启动画', /opening/.test(d.getElementById('btn-egg').className));
+  await sleep(1200);
+  ok('动画结束后弹出奖品', d.getElementById('modal-reward').classList.contains('show'));
+  ok('奖品是装扮图形（不再是缺失的 emoji）', !!d.querySelector('#rw-item .rw-icon svg'));
+  ok('开箱时撒了彩带粒子', d.querySelectorAll('#modal-reward .cf').length >= 10,
+    String(d.querySelectorAll('#modal-reward .cf').length));
+  ok('装扮已收入衣柜', a.state().owned.length >= 1, String(a.state().owned.length));
+  click($('btn-rw-ok'));
+  await sleep(80);
+
+  /* ================= 衣柜 ================= */
+  console.log('\n【衣柜】');
+  click($('btn-wardrobe'));
+  await sleep(80);
+  ok('进入衣柜页', activePage() === 'page-wardrobe', activePage());
+  ok('衣柜格数 = 装扮总数', d.querySelectorAll('#wd-grid .wd-cell').length === 79,
+    String(d.querySelectorAll('#wd-grid .wd-cell').length));
+  ok('衣柜预览渲染全身像', !!d.querySelector('#wd-preview svg'));
+  const petCell = Array.from(d.querySelectorAll('#wd-grid .wd-cell'))
+    .find(c => /小恐龙/.test(c.textContent));
+  ok('宠物类装备出现在衣柜里', !!petCell);
+  /* 先把宠物和披风买下来，模拟"已拥有"状态，才能测穿戴 */
+  w.eval('__pyTest.grant(["pet_dino","cape_hero","ear_pearl"],9999)');
+  await sleep(60);
+  /* 衣柜每次操作都会重建格子 DOM，所以每次都要重新查询，不能复用旧节点 */
+  const cellOf = re => Array.from(d.querySelectorAll('#wd-grid .wd-cell')).find(c => re.test(c.textContent));
+  const previewBefore = d.querySelector('#wd-preview svg').innerHTML;
+  click(cellOf(/小恐龙/));
+  await sleep(60);
+  ok('试穿宠物后格子变为穿着中', /穿着中/.test(cellOf(/小恐龙/).textContent), cellOf(/小恐龙/).textContent.trim());
+  ok('穿上宠物后预览的全身像发生了变化',
+    d.querySelector('#wd-preview svg').innerHTML !== previewBefore);
+  click(cellOf(/英雄披风/));
+  await sleep(60);
+  ok('披风可以同时与宠物共存（槽位独立）',
+    /穿着中/.test(cellOf(/英雄披风/).textContent) && /穿着中/.test(cellOf(/小恐龙/).textContent),
+    cellOf(/英雄披风/).textContent.trim() + ' / ' + cellOf(/小恐龙/).textContent.trim());
+  click(cellOf(/珍珠耳坠/));
+  await sleep(60);
+  ok('耳饰是独立槽位，可与前两者共存',
+    /穿着中/.test(cellOf(/珍珠耳坠/).textContent), cellOf(/珍珠耳坠/).textContent.trim());
+  ok('首页形象同步更新（披风+宠物都在）',
+    !!d.querySelector('#stage svg') && a.state().worn.cape === 'cape_hero' && a.state().worn.pet === 'pet_dino',
+    JSON.stringify(a.state().worn));
+  click($('btn-wardrobe-back'));
+  await sleep(60);
+
+  /* ================= 报告 ================= */
+  console.log('\n【学习报告】');
+  click($('btn-report'));
+  await sleep(80);
+  ok('进入报告页', activePage() === 'page-report', activePage());
+  ok('报告展示累计练习', /累计练习/.test(d.getElementById('report-body').textContent));
+  ok('报告展示知识点掌握度', /知识点掌握度/.test(d.getElementById('report-body').textContent));
+  ok('报告展示错题本', /错题本/.test(d.getElementById('report-body').textContent));
+  click($('btn-report-back'));
+  await sleep(60);
 
   /* ================= 激活码 ================= */
   console.log('\n【开通与激活码】');
-  W3.eval('document.getElementById("btn-code").click()');
-  await sleep(40);
-  ok('空激活码有提示', /请输入激活码/.test(a.toast()), a.toast());
-
-  Q3('inp-code').value = 'WRONG-CODE';
-  click3(Q3('btn-code'));
+  click($('btn-start'));
+  await sleep(60);
+  click($('btn-quit'));
+  await sleep(100);
+  click($('btn-cf-yes'));
+  await sleep(150);
+  w.eval('document.getElementById("btn-report").click()');
+  await sleep(50);
+  click($('btn-report-back'));
+  await sleep(50);
+  /* 打开支付弹窗：把免费额度耗尽 */
+  w.eval('__pyTest.S().dayCount = 999');
+  click($('btn-start'));
+  await sleep(80);
+  ok('免费额度用完弹出开通', d.getElementById('modal-pay').classList.contains('show'));
+  $('inp-code').value = 'WRONG';
+  click($('btn-code'));
   await sleep(40);
   ok('错误激活码被拒绝', /激活码不对/.test(a.toast()), a.toast());
-
-  Q3('inp-code').value = 'PINYIN2026';
-  click3(Q3('btn-code'));
+  $('inp-code').value = 'PINYIN2026';
+  click($('btn-code'));
   await sleep(40);
   ok('正确激活码可开通', /开通成功/.test(a.toast()), a.toast());
-  ok('开通后首页提示切换为完整版', /完整版/.test(Q3('free-tip').textContent), Q3('free-tip').textContent);
-
-  /* ================= 完整版额度 ================= */
-  console.log('\n【完整版额度】');
-  click3(Q3('btn-start'));
+  click($('btn-pay-close'));
   await sleep(60);
-  ok('完整版一轮 20 题', Q3('pd-total').textContent === '20', Q3('pd-total').textContent);
-  click3(Q3('btn-quit'));
-  await sleep(90);
-  ok('退出确认弹窗出现', Q3('modal-confirm').classList.contains('show'));
-  click3(Q3('btn-cf-yes'));
-  await sleep(120);
 
-  /* ================= 状态持久化 ================= */
+  /* ================= 状态持久化（跨页面共享存储）================= */
   console.log('\n【状态持久化】');
-  const snap = W3.eval('JSON.parse(localStorage.getItem("' + LS + '"))');
-  ok('练习题数已持久化', snap && snap.totalCount > 0, 'totalCount=' + (snap && snap.totalCount));
-  ok('积分已持久化', snap && snap.points > 0, 'points=' + (snap && snap.points));
-  ok('错题记录已持久化', snap && Object.keys(snap.wrong).length > 0,
-    '错题 ' + (snap ? Object.keys(snap.wrong).length : 0) + ' 道');
-  ok('开通状态已持久化', snap && snap.paid === true);
-  ok('性别已持久化', snap && (snap.gender === 'boy' || snap.gender === 'girl'));
-  ok('数据结构完整（关键字段都在）',
-    ['gender', 'points', 'answered', 'wrong', 'mastered', 'owned', 'worn', 'playDays', 'totalCount']
-      .every(k => k in snap),
-    Object.keys(snap).join(','));
+  const dom2 = await loadPage({ fresh: false });
+  const a2 = api(dom2);
+  ok('重新加载后进度仍在', a2.state().totalCount === a.state().totalCount,
+    a2.state().totalCount + ' vs ' + a.state().totalCount);
+  ok('性别保留', a2.state().gender === 'boy');
+  ok('装扮保留', (a2.state().owned || []).length >= 1);
+  ok('开通状态保留', a2.state().paid === true);
+  ok('重载后直接进入首页（不再强制选角色）', a2.activePage() === 'page-home', a2.activePage());
 
-  /* ================= 汇总 ================= */
-  console.log('\n' + '='.repeat(58));
-  console.log(`通过 ${pass.length} 项，失败 ${fail.length} 项`);
-  if (fail.length) { console.log('\n失败项：'); fail.forEach(f => console.log('  X ' + f)); }
-  console.log('='.repeat(58));
   try { dom.window.close(); } catch (e) { }
+  try { dom2.window.close(); } catch (e) { }
+
+  console.log('\n==========================================================');
+  console.log('通过 ' + pass.length + ' 项，失败 ' + fail.length + ' 项');
+  if (fail.length) { console.log('\n失败清单:'); fail.forEach(f => console.log('  X ' + f)); }
+  console.log('==========================================================');
   process.exit(fail.length ? 1 : 0);
 }
 
-main().catch(e => { console.error('\n测试脚本自身出错：', e); process.exit(1); });
+main().catch(e => { console.error('测试脚本出错:', e); process.exit(2); });

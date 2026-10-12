@@ -330,40 +330,105 @@ function explainSpeech(kid) {
   return parts.join('。');
 }
 
-/* ---------- 22 件装扮（积分兑换 + 彩蛋掉落）
-   slot：hat 帽子 / eyes 眼镜 / top 上衣 / bottom 裤子 / shoes 鞋 / back 背包 / hand 手持
+/* ---------- 79 件装扮（积分兑换 + 彩蛋掉落）
+   slot：hat 帽子 / eyes 眼镜墨镜 / ear 耳饰 / neck 项链围巾 / wrist 手表手环 /
+         top 上衣 / cape 披风 / bottom 裤子裙子 / shoes 鞋 / back 背包翅膀 /
+         hand 手持 / pet 宠物 / vehicle 载具
    每件装备的图形画在 js/avatar.js 里（同一套 SVG，穿戴后会真的出现在全身像上）
 --------------------------------------------------- */
 const OUTFITS = [
   // 帽子
   { id:'hat_cap',    name:'棒球帽',     slot:'hat',    cost:100 },
-  { id:'hat_sun',    name:'遮阳帽',     slot:'hat',    cost:200 },
-  { id:'hat_crown',  name:'小皇冠',     slot:'hat',    cost:500 },
-  // 眼镜
+  { id:'hat_bow',    name:'蝴蝶结发箍', slot:'hat',    cost:150 },
+  { id:'hat_beanie', name:'毛线帽',     slot:'hat',    cost:200 },
+  { id:'hat_sun',    name:'遮阳帽',     slot:'hat',    cost:240 },
+  { id:'hat_flower', name:'花环',       slot:'hat',    cost:300 },
+  { id:'hat_cowboy', name:'牛仔帽',     slot:'hat',    cost:380 },
+  { id:'hat_pirate', name:'海盗帽',     slot:'hat',    cost:460 },
+  { id:'hat_crown',  name:'小皇冠',     slot:'hat',    cost:560 },
+  { id:'hat_wizard', name:'巫师尖帽',   slot:'hat',    cost:700 },
+  // 眼镜 / 墨镜
   { id:'eye_round',  name:'圆框眼镜',   slot:'eyes',   cost:150 },
-  { id:'eye_sun',    name:'酷酷墨镜',   slot:'eyes',   cost:300 },
-  { id:'eye_star',   name:'星星墨镜',   slot:'eyes',   cost:450 },
-  // 上衣（会替换掉默认的白T恤）
-  { id:'top_stripe', name:'条纹T恤',    slot:'top',    cost:200 },
-  { id:'top_hoodie', name:'连帽卫衣',   slot:'top',    cost:400 },
-  { id:'top_dino',   name:'恐龙连体衣', slot:'top',    cost:650 },
+  { id:'eye_sport',  name:'运动护目镜', slot:'eyes',   cost:260 },
+  { id:'eye_sun',    name:'酷酷墨镜',   slot:'eyes',   cost:320 },
+  { id:'eye_pixel',  name:'像素眼镜',   slot:'eyes',   cost:360 },
+  { id:'eye_star',   name:'星星墨镜',   slot:'eyes',   cost:460 },
+  { id:'eye_heart',  name:'爱心墨镜',   slot:'eyes',   cost:520 },
+  { id:'eye_rainbow',name:'彩虹墨镜',   slot:'eyes',   cost:620 },
+  // 耳饰
+  { id:'ear_star',   name:'星星耳钉',   slot:'ear',    cost:120 },
+  { id:'ear_bell',   name:'小铃铛耳环', slot:'ear',    cost:180 },
+  { id:'ear_heart',  name:'爱心耳坠',   slot:'ear',    cost:260 },
+  { id:'ear_pearl',  name:'珍珠耳坠',   slot:'ear',    cost:340 },
+  // 项链 / 围巾
+  { id:'neck_scarf', name:'小红围巾',   slot:'neck',   cost:180 },
+  { id:'neck_heart', name:'爱心吊坠',   slot:'neck',   cost:260 },
+  { id:'neck_pearl', name:'珍珠项链',   slot:'neck',   cost:360 },
+  { id:'neck_gold',  name:'金链子',     slot:'neck',   cost:520 },
+  { id:'neck_gem',   name:'宝石项链',   slot:'neck',   cost:680 },
+  // 手表 / 手环
+  { id:'wrist_band', name:'运动手环',   slot:'wrist',  cost:160 },
+  { id:'wrist_kid',  name:'卡通小手表', slot:'wrist',  cost:260 },
+  { id:'wrist_sport',name:'运动手表',   slot:'wrist',  cost:380 },
+  { id:'wrist_gold', name:'金手表',     slot:'wrist',  cost:620 },
+  // 上衣
+  { id:'top_tank',   name:'清爽背心',   slot:'top',    cost:180 },
+  { id:'top_stripe', name:'条纹T恤',    slot:'top',    cost:220 },
   { id:'top_star',   name:'星星运动衣', slot:'top',    cost:300 },
-  // 裤子（会替换掉默认的短裤）
-  { id:'bot_ball',   name:'篮球短裤',   slot:'bottom', cost:250 },
-  { id:'bot_jeans',  name:'牛仔长裤',   slot:'bottom', cost:350 },
+  { id:'top_sweater',name:'针织毛衣',   slot:'top',    cost:380 },
+  { id:'top_hoodie', name:'连帽卫衣',   slot:'top',    cost:420 },
+  { id:'top_sailor', name:'水手服',     slot:'top',    cost:480 },
+  { id:'top_rain',   name:'透明雨衣',   slot:'top',    cost:540 },
+  { id:'top_dino',   name:'恐龙卫衣',   slot:'top',    cost:660 },
+  { id:'top_super',  name:'超人紧身衣', slot:'top',    cost:780 },
+  // 披风
+  { id:'cape_rain',  name:'小雨披',     slot:'cape',   cost:260 },
+  { id:'cape_red',   name:'小红披风',   slot:'cape',   cost:360 },
+  { id:'cape_hero',  name:'英雄披风',   slot:'cape',   cost:640 },
+  { id:'cape_butterfly', name:'蝴蝶斗篷', slot:'cape', cost:760 },
+  { id:'cape_star',  name:'星空斗篷',   slot:'cape',   cost:880 },
+  // 裤子 / 裙子
+  { id:'bot_sport',  name:'运动短裤',   slot:'bottom', cost:200 },
+  { id:'bot_ball',   name:'篮球短裤',   slot:'bottom', cost:220 },
   { id:'bot_skirt',  name:'小纱裙',     slot:'bottom', cost:300 },
+  { id:'bot_jeans',  name:'牛仔长裤',   slot:'bottom', cost:320 },
+  { id:'bot_pleat',  name:'百褶裙',     slot:'bottom', cost:340 },
+  { id:'bot_overall',name:'背带裤',     slot:'bottom', cost:420 },
+  { id:'bot_tutu',   name:'蓬蓬裙',     slot:'bottom', cost:460 },
   // 鞋
-  { id:'shoe_sneak', name:'运动鞋',     slot:'shoes',  cost:200 },
-  { id:'shoe_boot',  name:'小雨靴',     slot:'shoes',  cost:300 },
-  // 背包 / 背后
+  { id:'shoe_sandal',name:'小凉鞋',     slot:'shoes',  cost:170 },
+  { id:'shoe_sneak', name:'运动鞋',     slot:'shoes',  cost:240 },
+  { id:'shoe_oxford',name:'小皮鞋',     slot:'shoes',  cost:300 },
+  { id:'shoe_boot',  name:'小雨靴',     slot:'shoes',  cost:340 },
+  { id:'shoe_light', name:'发光鞋',     slot:'shoes',  cost:560 },
+  // 背包 / 背部
   { id:'back_bag',   name:'小书包',     slot:'back',   cost:300 },
+  { id:'back_shell', name:'小龟壳',     slot:'back',   cost:400 },
+  { id:'back_butterfly', name:'蝴蝶翅膀', slot:'back', cost:620 },
   { id:'back_wing',  name:'天使翅膀',   slot:'back',   cost:700 },
-  { id:'back_rocket',name:'火箭背包',   slot:'back',   cost:900 },
+  { id:'back_rocket',name:'火箭背包',   slot:'back',   cost:880 },
+  { id:'back_jet',   name:'喷气背包',   slot:'back',   cost:980 },
   // 手持
-  { id:'hand_balloon', name:'小气球',   slot:'hand',   cost:250 },
-  { id:'hand_ball',    name:'小足球',   slot:'hand',   cost:350 },
-  { id:'hand_gem',     name:'闪亮宝石', slot:'hand',   cost:400 },
-  { id:'hand_wand',    name:'魔法棒',   slot:'hand',   cost:600 }
+  { id:'hand_icescream', name:'冰淇淋', slot:'hand',   cost:200 },
+  { id:'hand_balloon',   name:'小气球', slot:'hand',   cost:250 },
+  { id:'hand_flower',    name:'小花束', slot:'hand',   cost:280 },
+  { id:'hand_umbrella',  name:'小雨伞', slot:'hand',   cost:320 },
+  { id:'hand_ball',      name:'小足球', slot:'hand',   cost:380 },
+  { id:'hand_sword',     name:'玩具剑', slot:'hand',   cost:520 },
+  { id:'hand_wand',      name:'魔法棒', slot:'hand',   cost:620 },
+  // 宠物
+  { id:'pet_rabbit', name:'小兔子',     slot:'pet',    cost:420 },
+  { id:'pet_cat',    name:'小猫咪',     slot:'pet',    cost:480 },
+  { id:'pet_dog',    name:'小狗狗',     slot:'pet',    cost:480 },
+  { id:'pet_dino',   name:'小恐龙',     slot:'pet',    cost:700 },
+  { id:'pet_panda',  name:'小熊猫',     slot:'pet',    cost:780 },
+  { id:'pet_unicorn',name:'独角兽',     slot:'pet',    cost:900 },
+  // 载具
+  { id:'veh_bike',   name:'小自行车',   slot:'vehicle',cost:520 },
+  { id:'veh_boat',   name:'小帆船',     slot:'vehicle',cost:560 },
+  { id:'veh_car',    name:'小汽车',     slot:'vehicle',cost:640 },
+  { id:'veh_plane',  name:'小飞机',     slot:'vehicle',cost:760 },
+  { id:'veh_rocket', name:'小火箭',     slot:'vehicle',cost:980 }
 ];
 
 const OUTFIT_MAP = {};

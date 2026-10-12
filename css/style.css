@@ -333,7 +333,114 @@ input{font-family:inherit}
 .cf-text{font-size:15px;color:var(--ink2);line-height:1.75;margin-bottom:18px}
 .cf-row{display:flex;gap:11px}
 .rw-item{font-size:58px;line-height:1.2;margin:4px 0 8px;animation:pop .45s ease}
+.rw-item .rw-icon{display:flex;align-items:center;justify-content:center;min-height:74px}
+.rw-item .rw-icon svg{width:64px;height:64px}
+.rw-item .rw-name{display:block;font-size:20px;font-weight:800;color:var(--brand);margin-top:4px}
 .rw-desc{font-size:15px;color:var(--ink2);line-height:1.7;margin-bottom:6px}
+
+/* ---------- 彩蛋开箱 ---------- */
+.modal-egg-box{max-width:320px}
+.egg-stage{padding:10px 0 4px}
+.egg{
+  font-size:104px;line-height:1;background:none;border:none;cursor:pointer;
+  filter:drop-shadow(0 10px 16px rgba(108,92,231,.28));
+  animation:eggIdle 1.6s ease-in-out infinite;
+}
+@keyframes eggIdle{0%,100%{transform:rotate(-4deg) scale(1)}50%{transform:rotate(4deg) scale(1.04)}}
+.egg.opening{animation:eggShake .55s ease-in-out 2, eggBoom .55s ease-in .95s forwards}
+@keyframes eggShake{
+  0%,100%{transform:rotate(-9deg) scale(1.02)}
+  25%{transform:rotate(10deg) scale(1.05)}
+  50%{transform:rotate(-12deg) scale(1.02)}
+  75%{transform:rotate(12deg) scale(1.06)}
+}
+@keyframes eggBoom{
+  0%{transform:scale(1);opacity:1;filter:drop-shadow(0 0 0 rgba(255,209,102,0))}
+  55%{transform:scale(1.35) rotate(6deg);opacity:1;filter:drop-shadow(0 0 26px rgba(255,209,102,.95))}
+  100%{transform:scale(2.1) rotate(-4deg);opacity:0;filter:drop-shadow(0 0 34px rgba(255,209,102,1))}
+}
+.egg-hint{font-size:14px;color:var(--ink2);font-weight:700;margin-top:10px;animation:bounceY 1.3s ease-in-out infinite}
+
+/* 彩带粒子 */
+.modal-box{position:relative}
+.confetti-host{position:absolute;inset:-10px;overflow:hidden;pointer-events:none;border-radius:28px}
+.cf{
+  position:absolute;top:-16px;border-radius:3px;opacity:0;
+  animation:cfFall 1.2s ease-in forwards;
+}
+@keyframes cfFall{
+  0%{opacity:0;transform:translateY(0) rotate(0) scale(.6)}
+  12%{opacity:1}
+  100%{opacity:0;transform:translateY(420px) rotate(540deg) scale(1)}
+}
+
+/* ---------- 新题型 ---------- */
+/* 听音辨音：题面只有一个大喇叭 */
+.q-listen .q-word{
+  font-size:88px;color:var(--brand);cursor:pointer;
+  animation:pop .4s ease;
+}
+.q-listen .q-word:active{transform:scale(.94)}
+.q-listen{background:linear-gradient(160deg,#F3EFFF,#EAF4FF)}
+
+/* 判断对错 */
+.options-judge{flex-direction:column;gap:12px}
+.judge-card{
+  background:#F7F6FF;border-radius:22px;padding:16px;text-align:center;
+  border:2px dashed #D9D3F2;
+}
+.judge-word{font-size:52px;font-weight:800;line-height:1.2}
+.judge-py{font-size:34px;font-weight:800;color:var(--brand);letter-spacing:2px;margin-top:2px}
+.judge-ask{font-size:14px;color:var(--ink2);margin-top:6px;font-weight:700}
+.judge-row{display:flex;gap:12px}
+.judge-btn{flex:1;font-size:20px;font-weight:800;padding:16px 8px}
+.judge-row .opt.wrong{opacity:.85}
+
+/* 连线配对 */
+.options-match{flex-direction:column;gap:10px}
+.match-hint{font-size:13px;color:var(--ink2);font-weight:700}
+.match-wrap{display:flex;gap:10px;justify-content:center;width:100%}
+.match-col{flex:1;display:flex;flex-direction:column;gap:9px;max-width:170px}
+.match-cell{
+  background:#fff;border:2.5px solid var(--line);border-radius:16px;
+  padding:12px 6px;font-size:20px;font-weight:800;color:var(--ink);
+  transition:all .15s;min-height:56px;
+}
+.match-cell .py{letter-spacing:1px}
+.match-cell:active{transform:scale(.97)}
+.match-cell.picked{border-color:var(--brand);background:#F1EEFF;box-shadow:0 0 0 3px rgba(108,92,231,.14)}
+.match-cell.done{border-color:#3EBD93;background:#EAFBF4;color:#1E8A68;pointer-events:none}
+.match-cell.shake{animation:shakeX .4s ease;border-color:var(--coral);background:#FFF1F2}
+@keyframes shakeX{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+
+/* 填空（补声母 / 补韵母）：按钮上直接显示「补完整之后的拼音」 */
+.options-fill{grid-template-columns:1fr 1fr;gap:11px}
+.opt-fill{padding:14px 10px}
+.opt-fill .opt-val{font-size:31px;font-weight:800;color:var(--brand);letter-spacing:.5px}
+.fill-hint{
+  grid-column:1/-1;text-align:center;font-size:13.5px;color:var(--ink2);
+  font-weight:700;padding-top:2px;
+}
+
+/* 拼读积木 */
+.options-spell{flex-direction:column;gap:12px}
+.spell-hint{font-size:13.5px;color:var(--ink2);font-weight:700;text-align:center}
+.spell-slot{display:flex;gap:7px;justify-content:center;min-height:52px}
+.ss-cell{
+  width:46px;height:50px;border:2.5px dashed #CFC9F0;border-radius:13px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;font-weight:800;color:var(--ink);background:#FBFAFF;
+}
+.ss-cell.filled{border-style:solid;border-color:var(--brand);background:#F1EEFF;color:var(--brand);animation:pop .3s ease}
+.spell-row{display:flex;flex-wrap:wrap;gap:9px;justify-content:center}
+.tile{
+  min-width:56px;padding:11px 12px;border:none;border-radius:15px;
+  background:linear-gradient(160deg,#8B7CF0,#6C5CE7);color:#fff;
+  font-size:24px;font-weight:800;box-shadow:0 4px 0 rgba(78,65,184,.55);
+  transition:transform .1s, opacity .15s;
+}
+.tile:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(78,65,184,.55)}
+.tile.used{opacity:.25;pointer-events:none;transform:scale(.92)}
 
 /* ---------- Toast ---------- */
 .toast{

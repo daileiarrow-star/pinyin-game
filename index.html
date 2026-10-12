@@ -57,11 +57,11 @@
 
   <div class="bar-outer"><div class="bar-inner" id="pd-bar"></div></div>
 
-  <div class="q-card">
+  <div class="q-card" id="q-card">
     <div class="q-tag" id="pd-tag">b / p</div>
     <div class="q-word" id="pd-word">八</div>
     <button class="btn btn-audio" id="btn-audio"><span class="b-ico">🔊</span> 听一听</button>
-    <div class="q-hint">听不清？点左边按钮再听一遍</div>
+    <div class="q-hint" id="q-hint">听不清？点左边按钮再听一遍</div>
   </div>
 
   <div class="options" id="pd-options"></div>
@@ -125,9 +125,22 @@
   </div>
 </div>
 
+<!-- ============ 弹窗：彩蛋（先出现蛋，点开有特效）============ -->
+<div class="modal" id="modal-egg">
+  <div class="modal-box modal-egg-box">
+    <div class="modal-emoji">✨</div>
+    <h3>有个彩蛋！</h3>
+    <div class="egg-stage">
+      <button class="egg" id="btn-egg" aria-label="打开彩蛋">🥚</button>
+      <div class="egg-hint" id="egg-hint">点一下打开它！</div>
+    </div>
+  </div>
+</div>
+
 <!-- ============ 弹窗：彩蛋 / 解锁 ============ -->
 <div class="modal" id="modal-reward">
   <div class="modal-box">
+    <div class="confetti-host"></div>
     <div class="modal-emoji" id="rw-emoji">🎁</div>
     <h3 id="rw-title">惊喜彩蛋！</h3>
     <div class="rw-item" id="rw-item"></div>

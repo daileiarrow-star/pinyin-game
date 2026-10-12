@@ -6,8 +6,8 @@
   'use strict';
 
   /* ============ 常量 ============ */
-  var LS_KEY = 'pinyin_daren_v2';   // v2：数据结构升级（装扮槽位变化），旧进度不迁移
-  var SLOTS = ['hat', 'eyes', 'top', 'bottom', 'shoes', 'back', 'hand'];
+  var LS_KEY = 'pinyin_daren_v3';   // v3：槽位扩到 13 个、题库加题型，旧进度不迁移
+  var SLOTS = ['hat', 'eyes', 'ear', 'neck', 'wrist', 'top', 'cape', 'bottom', 'shoes', 'back', 'hand', 'pet', 'vehicle'];
   var PURCHASE_EGG_EVERY = 3;   // 每掌握 3 个知识点触发一次彩蛋
   var DAY_EGG_EVERY = 3;        // 连续练习满 3 天触发一次彩蛋
 
@@ -139,7 +139,8 @@
     });
   }
   function playQuestion(q) {
-    playOrSpeak(CONFIG.audioBase + 'q/' + q.id + '.mp3', q.content);
+    if (q.noAudio) { toast('这道题不用听哦，直接选吧'); return; }
+    playOrSpeak(CONFIG.audioBase + 'q/' + questionAudioId(q) + '.mp3', q.content);
   }
   function playExplain(kid) {
     var t = explainSpeech(kid);   // 朗读稿定义在 data.js，与语音生成脚本共用
@@ -251,16 +252,34 @@
   }
 
   function toItem(q) {
-    // 打乱选项顺序，并把正确答案下标重算
-    var idx = [];
-    for (var i = 0; i < q.options.length; i++) idx.push(i);
-    shuffle(idx);
-    var opts = [], ans = 0;
-    for (var j = 0; j < idx.length; j++) {
-      opts.push(q.options[idx[j]]);
-      if (idx[j] === q.answer) ans = j;
+    var it = {
+      src: q, id: q.id, type: q.type || 'choice', knowledge: q.knowledge,
+      content: q.content, why: q.why, audioId: q.audioId,
+      hideWord: q.hideWord, noAudio: q.noAudio, display: q.display
+    };
+
+    if (it.type === 'match') {
+      it.pairs = q.pairs.map(function (p) { return { c: p[0], p: p[1] }; });
+    } else if (it.type === 'spell') {
+      it.target = q.tiles.slice();
+      it.tiles = shuffle(q.tiles.concat(q.extraTiles).slice());
+    } else if (it.type === 'judge') {
+      it.judgePinyin = q.judgePinyin;
+      it.judgeOk = q.judgeOk;
+    } else {
+      /* choice / listen / fill：打乱选项顺序并重算答案下标 */
+      var idx = [];
+      for (var i = 0; i < q.options.length; i++) idx.push(i);
+      shuffle(idx);
+      var opts = [], ans = 0;
+      for (var j = 0; j < idx.length; j++) {
+        opts.push(q.options[idx[j]]);
+        if (idx[j] === q.answer) ans = j;
+      }
+      it.opts = opts;
+      it.ans = ans;
     }
-    return { src: q, id: q.id, knowledge: q.knowledge, content: q.content, opts: opts, ans: ans };
+    return it;
   }
 
   /* ============ 练习会话 ============ */
@@ -312,30 +331,256 @@
     $('pd-bar').style.width = Math.round(SS.answered / SS.len * 100) + '%';
     $('pd-tag').textContent = kpOf(it.knowledge).tag;
 
-    var w = $('pd-word');
-    w.textContent = it.content;
-    w.className = 'q-word' + (it.content.length > 1 ? ' long' : '');
-
     $('pd-feedback').textContent = '';
     $('pd-feedback').className = 'feedback';
 
+    var w = $('pd-word');
+    var card = $('q-card');
     var box = $('pd-options');
     box.innerHTML = '';
-    it.opts.forEach(function (txt, i) {
-      var b = document.createElement('button');
-      b.className = 'opt';
-      b.textContent = txt;
-      b.onclick = function () { onChoose(i, b); };
-      box.appendChild(b);
-    });
+    box.className = 'options';
+    card.classList.remove('q-listen');
+
+    /* ---- 按题型渲染 ---- */
+    var hint = $('q-hint');
+    if (it.type === 'listen') {
+      card.classList.add('q-listen');
+      w.className = 'q-word q-word-audio';
+      w.textContent = '🔊';
+      w.onclick = function () { playQuestion(it); };
+      hint.textContent = '点上面的喇叭再听一遍，听清是哪个音';
+    } else if (it.type === 'fill') {
+      w.onclick = null;
+      w.className = 'q-word';
+      w.textContent = it.content;
+      hint.textContent = '补完整：' + String(it.display).replace('▢', '（　）');
+    } else {
+      w.onclick = null;
+      w.className = 'q-word' + (it.content.length > 1 ? ' long' : '');
+      w.textContent = it.content;
+      hint.textContent = '听不清？点左边按钮再听一遍';
+    }
+
+    if (it.type === 'judge') { hint.textContent = '看看它标的读音对不对'; return renderJudge(it); }
+    if (it.type === 'match') { hint.textContent = '把字和它的读音连起来'; return renderMatch(it); }
+    if (it.type === 'spell') { hint.textContent = '按顺序点字母块，拼出正确读音'; return renderSpell(it); }
+    renderOptions(it);
   }
 
-  function onChoose(i, btn) {
+  /* choice / listen / fill 共用：选项网格 */
+  function renderOptions(it) {
+    var box = $('pd-options');
+    if (it.type === 'fill') box.className = 'options options-fill';
+    it.opts.forEach(function (txt, i) {
+      var b = document.createElement('button');
+      b.className = 'opt' + (it.type === 'fill' ? ' opt-fill' : '');
+      if (it.type === 'fill') {
+        /* 把候选块直接填进 ▢，按钮上显示的就是「填好之后的完整拼音」，
+           比「p▢ + í」这种拆开显示直观得多 */
+        b.innerHTML = '<span class="opt-val">' + esc(String(it.display).replace('▢', txt)) + '</span>';
+      } else {
+        b.innerHTML = '<span class="opt-val">' + esc(txt) + '</span>';
+      }
+      b.onclick = function () { onPick(i, b); };
+      box.appendChild(b);
+    });
+    if (it.type === 'fill') {
+      var hint = document.createElement('div');
+      hint.className = 'fill-hint';
+      hint.textContent = '选一个，把拼音补完整';
+      box.appendChild(hint);
+    }
+  }
+
+  /* judge 判断对错 */
+  function renderJudge(it) {
+    var box = $('pd-options');
+    box.className = 'options options-judge';
+    var card = document.createElement('div');
+    card.className = 'judge-card';
+    card.innerHTML = '<div class="judge-word">' + esc(it.content) + '</div>' +
+      '<div class="judge-py">' + esc(it.judgePinyin) + '</div>' +
+      '<div class="judge-ask">这样读，对吗？</div>';
+    box.appendChild(card);
+    var row = document.createElement('div');
+    row.className = 'judge-row';
+    [['✓ 读对了', true], ['✗ 读错了', false]].forEach(function (p) {
+      var b = document.createElement('button');
+      b.className = 'opt judge-btn';
+      b.textContent = p[0];
+      b.onclick = function () { onJudge(p[1] === it.judgeOk, b); };
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+  }
+
+  /* match 连线配对 */
+  function renderMatch(it) {
+    var box = $('pd-options');
+    box.className = 'options options-match';
+    var hint = document.createElement('div');
+    hint.className = 'match-hint';
+    hint.textContent = '点一个字，再点它的读音，把它们连起来';
+    box.appendChild(hint);
+
+    var wrap = document.createElement('div');
+    wrap.className = 'match-wrap';
+
+    var left = document.createElement('div');
+    left.className = 'match-col';
+    var right = document.createElement('div');
+    right.className = 'match-col';
+
+    var rights = shuffle(it.pairs.map(function (p, i) { return { p: p.p, i: i }; }));
+    it.pairs.forEach(function (p, i) {
+      var a = document.createElement('button');
+      a.className = 'match-cell';
+      a.innerHTML = '<span class="mc-main">' + esc(p.c) + '</span>';
+      a.onclick = function () { matchPick('L', i, a); };
+      left.appendChild(a);
+    });
+    rights.forEach(function (r) {
+      var b = document.createElement('button');
+      b.className = 'match-cell';
+      b.innerHTML = '<span class="mc-main py">' + esc(r.p) + '</span>';
+      b.onclick = function () { matchPick('R', r.i, b); };
+      right.appendChild(b);
+    });
+
+    wrap.appendChild(left);
+    wrap.appendChild(right);
+    box.appendChild(wrap);
+
+    SS.match = { picked: null, done: 0, mistakes: 0, left: left.children, right: right.children, it: it };
+  }
+
+  var matchSel = null;   // {side, idx, el}
+  function matchPick(side, idx, el) {
+    var M = SS.match;
+    if (!M || SS.locked) return;
+    if (el.classList.contains('done')) return;
+
+    if (!matchSel) { matchSel = { side: side, idx: idx, el: el }; el.classList.add('picked'); return; }
+    if (matchSel.side === side) {
+      matchSel.el.classList.remove('picked');
+      if (matchSel.el === el) { matchSel = null; return; }
+      matchSel = { side: side, idx: idx, el: el };
+      el.classList.add('picked');
+      return;
+    }
+
+    var li = side === 'L' ? idx : matchSel.idx;
+    var ri = side === 'R' ? idx : matchSel.idx;
+    matchSel.el.classList.remove('picked');
+    matchSel = null;
+
+    var ok = M.it.pairs[li].p === M.it.pairs[ri].p;
+    if (ok) {
+      M.done++;
+      var le = M.left[li], re = M.right[ri];
+      /* right 列的顺序被打乱过，找到真正对应的那一格 */
+      re = null;
+      for (var k = 0; k < M.right.length; k++) {
+        if (!M.right[k].classList.contains('done') &&
+            M.right[k].textContent === M.it.pairs[li].p) { re = M.right[k]; break; }
+      }
+      le.classList.add('done'); if (re) re.classList.add('done');
+      beep('good');
+      if (M.done >= M.it.pairs.length) {
+        onMatchDone();
+      }
+    } else {
+      M.mistakes++;
+      el.classList.add('shake');
+      beep('bad');
+      setTimeout(function () { el.classList.remove('shake'); }, 420);
+    }
+  }
+
+  function onMatchDone() {
+    var M = SS.match;
+    SS.match = null;
+    settle(M.mistakes === 0, { unit: '全连对' });
+  }
+
+  /* spell 拼读积木 */
+  function renderSpell(it) {
+    var box = $('pd-options');
+    box.className = 'options options-spell';
+    var hint = document.createElement('div');
+    hint.className = 'spell-hint';
+    hint.innerHTML = '按顺序点字母块，拼出「' + esc(it.content) + '」的读音';
+    box.appendChild(hint);
+
+    var slot = document.createElement('div');
+    slot.className = 'spell-slot';
+    slot.id = 'spell-slot';
+    box.appendChild(slot);
+
+    var row = document.createElement('div');
+    row.className = 'spell-row';
+    it.tiles.forEach(function (t, i) {
+      var b = document.createElement('button');
+      b.className = 'tile';
+      b.textContent = t;
+      b.onclick = function () { spellPick(i, b); };
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+
+    SS.spell = { picked: [], row: row, slot: slot, it: it };
+    renderSpellSlot();
+  }
+
+  function renderSpellSlot() {
+    var sp = SS.spell;
+    var html = '';
+    for (var i = 0; i < sp.it.target.length; i++) {
+      html += '<span class="ss-cell' + (sp.picked[i] !== undefined ? ' filled' : '') + '">' +
+        (sp.picked[i] !== undefined ? esc(sp.it.target[i]) : '&nbsp;') + '</span>';
+    }
+    sp.slot.innerHTML = html;
+  }
+
+  function spellPick(tileIdx, btn) {
+    var sp = SS.spell;
+    if (!sp || SS.locked || btn.classList.contains('used')) return;
+    var need = sp.it.target.length;
+    if (sp.picked.length >= need) return;
+
+    sp.picked.push(sp.it.tiles[tileIdx]);
+    btn.classList.add('used');
+    renderSpellSlot();
+    beep('tap');
+
+    if (sp.picked.length >= need) {
+      var ok = true;
+      for (var i = 0; i < need; i++) {
+        if (sp.picked[i] !== sp.it.target[i]) { ok = false; break; }
+      }
+      SS.spell = null;
+      setTimeout(function () { settle(ok, { unit: '拼读' }); }, 260);
+    }
+  }
+
+  /* choice / listen / fill 选项点击 */
+  function onPick(i, btn) {
+    if (!SS || SS.locked) return;
+    var it = SS.queue[SS.i];
+    onJudge(i === it.ans, btn, it);
+  }
+  function onJudge(ok, btn, itOverride) {
+    if (!SS || SS.locked) return;
+    var it = itOverride || SS.queue[SS.i];
+    settle(ok, { btn: btn, it: it });
+  }
+
+  /* ---------- 统一判分 ---------- */
+  function settle(ok, opt) {
+    opt = opt || {};
     if (!SS || SS.locked) return;
     SS.locked = true;
-    var it = SS.queue[SS.i];
-    var ok = (i === it.ans);
-    var opts = $('pd-options').children;
+    var it = opt.it || SS.queue[SS.i];
     var j;
 
     SS.answered++;
@@ -351,41 +596,55 @@
       SS.streak++;
       if (SS.streak > SS.best) SS.best = SS.streak;
 
-      var gain = 10;
-      var bonus = 0;
-      if (SS.streak % 5 === 0) { bonus += 20; }
+      var gain = 10, bonus = 0;
+      if (SS.streak % 5 === 0) bonus += 20;
       if (SS.retestIds[it.id]) { bonus += 15; delete SS.retestIds[it.id]; }
+      if (it.type && it.type !== 'choice') bonus += 5;   // 新题型稍微多给一点
       gain += bonus;
       S.points += gain;
       SS.gain += gain;
 
-      btn.classList.add('correct');
-      for (j = 0; j < opts.length; j++) opts[j].classList.add('locked');
+      if (opt.btn) {
+        opt.btn.classList.add('correct');
+        var sibs = opt.btn.parentNode.parentNode.querySelectorAll('.opt');
+        for (j = 0; j < sibs.length; j++) sibs[j].classList.add('locked');
+      }
 
       var fb = $('pd-feedback');
       fb.className = 'feedback good';
-      if (bonus && SS.streak % 5 === 0) fb.textContent = '连对 ' + SS.streak + ' 题！额外 +' + bonus + ' 分 🎊';
-      else if (bonus) fb.textContent = '看完讲解答对啦！+' + gain + ' 分 💪';
+      if (SS.streak % 5 === 0 && SS.streak > 0) fb.textContent = '连对 ' + SS.streak + ' 题！额外 +' + bonus + ' 分 🎊';
+      else if (SS.retestIds && bonus >= 15) fb.textContent = '看完讲解答对啦！+' + gain + ' 分 💪';
       else fb.textContent = '答对啦！+' + gain + ' 分 ⭐';
 
       checkMastery(it.knowledge);
       save();
-      setTimeout(advance, 720);
+      beep('good');
+      setTimeout(advance, 780);
     } else {
       SS.streak = 0;
       S.wrong[it.id] = (S.wrong[it.id] || 0) + 1;
       S.wrongTime[it.id] = Date.now();
       S.rightStreak[it.id] = 0;
 
-      btn.classList.add('wrong');
-      for (j = 0; j < opts.length; j++) {
-        opts[j].classList.add('locked');
-        if (j === it.ans) opts[j].classList.add('correct');
+      if (opt.btn) {
+        opt.btn.classList.add('wrong');
+        var sibs2 = opt.btn.parentNode.parentNode.querySelectorAll('.opt');
+        for (j = 0; j < sibs2.length; j++) {
+          sibs2[j].classList.add('locked');
+          if (it.opts && j === it.ans) sibs2[j].classList.add('correct');
+        }
+      } else if (it.opts) {
+        var os = $('pd-options').querySelectorAll('.opt');
+        for (j = 0; j < os.length; j++) {
+          os[j].classList.add('locked');
+          if (j === it.ans) os[j].classList.add('correct');
+        }
       }
       var f2 = $('pd-feedback');
       f2.className = 'feedback bad';
       f2.textContent = '没关系，我们一起来看看～';
       save();
+      beep('bad');
       setTimeout(function () { showExplain(it.knowledge, it); }, 1050);
     }
   }
@@ -553,7 +812,7 @@
     return d;
   }
 
-  /* ============ 彩蛋 ============ */
+  /* ============ 彩蛋判定 ============ */
   function collectEggs() {
     var m = masteredCount();
     var keyM = 'm' + Math.floor(m / PURCHASE_EGG_EVERY);
@@ -571,28 +830,118 @@
     return null;
   }
 
+  /* ============ 音效（WebAudio 合成，零素材依赖）============ */
+  var AC = null;
+  function ac() {
+    if (!AC) {
+      try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+    }
+    if (AC && AC.state === 'suspended') { try { AC.resume(); } catch (e) { } }
+    return AC;
+  }
+  function tone(c, f, t0, dur, type, vol) {
+    var t = c.currentTime;
+    var o = c.createOscillator(), g = c.createGain();
+    o.type = type || 'sine';
+    o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t + t0);
+    g.gain.linearRampToValueAtTime(vol || 0.1, t + t0 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + t0 + dur);
+    o.connect(g); g.connect(c.destination);
+    o.start(t + t0); o.stop(t + t0 + dur + 0.05);
+  }
+  function beep(kind) {
+    var c = ac();
+    if (!c) return;
+    try {
+      if (kind === 'good') { tone(c, 660, 0, .10, 'sine', .09); tone(c, 880, .07, .16, 'sine', .09); }
+      else if (kind === 'bad') { tone(c, 300, 0, .15, 'sine', .08); tone(c, 210, .09, .2, 'sine', .07); }
+      else if (kind === 'tap') { tone(c, 540, 0, .05, 'triangle', .05); }
+      else if (kind === 'pop') { tone(c, 320, 0, .05, 'square', .05); tone(c, 520, .03, .08, 'triangle', .06); }
+      else if (kind === 'egg') {
+        tone(c, 170, 0, .05, 'square', .05);
+        tone(c, 120, .03, .1, 'sawtooth', .04);
+        [523, 659, 784, 1047].forEach(function (f, i) { tone(c, f, .1 + i * .07, .18, 'triangle', .08); });
+        tone(c, 1568, .42, .32, 'sine', .06);
+      }
+    } catch (e) { /* 某些浏览器限制，静默 */ }
+  }
+
+  /* ============ 彩蛋：先出现蛋 → 点开 → 特效 + 音效 ============ */
+  var eggPending = null, eggOpened = false;
   function showReward(egg) {
-    // 随机掉落一件「还没拥有」的装扮；全都有了就送随机小惊喜
     var notOwned = OUTFITS.filter(function (o) { return S.owned.indexOf(o.id) < 0; });
-    var item = null;
+    eggPending = { reason: egg.reason, item: null, bonus: null };
+
     if (notOwned.length) {
-      item = pickOne(notOwned);
+      var item = pickOne(notOwned);
       S.owned.push(item.id);
       save();
-      $('rw-emoji').textContent = '🎁';
-      $('rw-title').textContent = '惊喜彩蛋！';
-      $('rw-item').textContent = item.emoji;
-      $('rw-desc').innerHTML = egg.reason + '，<br>获得了限定装扮：<b>' + item.name + '</b>！<br><small>去「我的衣柜」穿上试试～</small>';
+      eggPending.item = item;
     } else {
       var bonus = pickOne(EGG_BONUS);
       S.points += 100; save();
-      $('rw-emoji').textContent = '🎊';
-      $('rw-title').textContent = '惊喜彩蛋！';
-      $('rw-item').textContent = bonus;
-      $('rw-desc').innerHTML = egg.reason + '，<br>装扮都收集齐啦！奖励你 <b>+100 积分</b>。';
+      eggPending.bonus = bonus;
     }
-    showModal('modal-reward');
+
+    $('btn-egg').classList.remove('opening');
+    $('egg-hint').textContent = '点一下打开它！';
+    eggOpened = false;
+    showModal('modal-egg');
+    beep('pop');
   }
+
+  function openEgg() {
+    if (eggOpened || !eggPending) return;
+    eggOpened = true;
+    var el = $('btn-egg');
+    el.classList.add('opening');
+    $('egg-hint').textContent = '……';
+    beep('egg');
+
+    setTimeout(function () {
+      var e = eggPending;
+      eggPending = null;
+      eggOpened = false;
+      el.classList.remove('opening');
+      hideModal('modal-egg');
+
+      if (e.item) {
+        $('rw-emoji').textContent = '🎁';
+        $('rw-title').textContent = '惊喜彩蛋！';
+        $('rw-item').innerHTML = '<span class="rw-icon">' + Avatar.itemIcon(e.item.id, e.item.slot) + '</span>' +
+          '<span class="rw-name">' + esc(e.item.name) + '</span>';
+        $('rw-desc').innerHTML = e.reason + '，<br>获得了限定装扮：<b>' + esc(e.item.name) + '</b>！<br><small>去「我的衣柜」穿上试试～</small>';
+      } else {
+        $('rw-emoji').textContent = '🎊';
+        $('rw-title').textContent = '惊喜彩蛋！';
+        $('rw-item').textContent = e.bonus;
+        $('rw-desc').innerHTML = e.reason + '，<br>装扮都收集齐啦！奖励你 <b>+100 积分</b>。';
+      }
+      showModal('modal-reward');
+      confetti($('modal-reward'));
+    }, 1050);
+  }
+
+  /* 彩带粒子 */
+  function confetti(container) {
+    var colors = ['#FF6B81', '#FFD166', '#7EDDC0', '#8EC9FF', '#B08CF0', '#FF9F43'];
+    var host = container.querySelector('.confetti-host') || container;
+    for (var i = 0; i < 30; i++) {
+      var p = document.createElement('span');
+      p.className = 'cf';
+      p.style.left = (4 + Math.random() * 92) + '%';
+      p.style.background = colors[i % colors.length];
+      p.style.animationDelay = (Math.random() * 0.35) + 's';
+      p.style.animationDuration = (1 + Math.random() * 0.8) + 's';
+      var size = 6 + Math.random() * 7;
+      p.style.width = size + 'px';
+      p.style.height = (size * (Math.random() > .5 ? 1 : 0.45)) + 'px';
+      host.appendChild(p);
+      (function (el) { setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 2200); })(p);
+    }
+  }
+
 
   /* ============ 报告 ============ */
   function renderReport() {
@@ -667,13 +1016,14 @@
         var q = null;
         for (var i = 0; i < QUESTIONS.length; i++) if (QUESTIONS[i].id === qid) { q = QUESTIONS[i]; break; }
         if (!q) return;
+        var ans = answerText(q);
         var item = document.createElement('div');
         item.className = 'wrong-item';
         item.innerHTML =
-          '<div class="wrong-char">' + q.content + '</div>' +
+          '<div class="wrong-char">' + esc(q.content) + '</div>' +
           '<div class="wrong-info">' +
-          '<div class="wi-p">' + q.options[q.answer] + '</div>' +
-          '<div class="wi-k">' + kpOf(q.knowledge).name + ' · 错过 ' + S.wrong[qid] + ' 次</div>' +
+          '<div class="wi-p">' + esc(ans) + '</div>' +
+          '<div class="wi-k">' + esc(kpOf(q.knowledge).name) + ' · 错过 ' + S.wrong[qid] + ' 次</div>' +
           '</div>';
         sec4.appendChild(item);
       });
@@ -712,6 +1062,13 @@
 
   function row(k, v) {
     return '<div class="rp-row"><span>' + k + '</span><b>' + v + '</b></div>';
+  }
+  /* 一道题的「正确答案」展示文本（各题型不同） */
+  function answerText(q) {
+    if (q.type === 'judge') return q.content + ' ' + (q.judgeOk ? '读 ' : '不读 ') + q.judgePinyin;
+    if (q.type === 'match') return '连线配对';
+    if (q.type === 'spell') return (q.tiles || []).join(' ');
+    return q.options ? q.options[q.answer] : '';
   }
 
   /* ============ 衣柜 ============ */
@@ -757,7 +1114,11 @@
     });
   }
 
-  var SLOT_NAME = { hat: '帽子', eyes: '眼镜', top: '上衣', bottom: '裤子', shoes: '鞋', back: '背包', hand: '手持' };
+  var SLOT_NAME = {
+    hat: '帽子', eyes: '眼镜', ear: '耳饰', neck: '项链', wrist: '手表',
+    top: '上衣', cape: '披风', bottom: '裤子', shoes: '鞋', back: '背部',
+    hand: '手持', pet: '宠物', vehicle: '载具'
+  };
 
   /* ============ 支付 ============ */
   function openPay() {
@@ -818,6 +1179,7 @@
     };
 
     $('btn-rw-ok').onclick = function () { hideModal('modal-reward'); };
+    $('btn-egg').onclick = openEgg;
     $('btn-pay-close').onclick = function () { hideModal('modal-pay'); };
     $('btn-code').onclick = redeem;
     $('inp-code').addEventListener('keydown', function (e) { if (e.key === 'Enter') redeem(); });
@@ -875,6 +1237,20 @@
 
     // 免费额度用完后，首页主按钮依然可用，但会引导开通
     console.log('%c拼音小达人 已就绪', 'color:#6C5CE7;font-weight:bold');
+
+    // 自动化测试钩子（只读状态 + 直达会话，不影响正常使用）
+    window.__pyTest = {
+      S: function () { return S; },
+      SS: function () { return SS; },
+      start: startPractice,
+      toItem: toItem,
+      /* 供自动化测试驱动内部状态用（不参与任何线上逻辑） */
+      grant: function (ids, pts) {
+        (ids || []).forEach(function (id) { if (S.owned.indexOf(id) < 0) S.owned.push(id); });
+        if (typeof pts === 'number') S.points = pts;
+        save(); renderWardrobe(); renderStage();
+      }
+    };
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

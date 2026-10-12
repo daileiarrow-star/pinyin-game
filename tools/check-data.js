@@ -44,9 +44,13 @@ KNOWLEDGE_POINTS.forEach(k => {
 const byK = {};
 QUESTIONS.forEach(q => { byK[q.knowledge] = (byK[q.knowledge] || 0) + 1; });
 console.log('题目总数:', QUESTIONS.length);
-const uneven = KNOWLEDGE_POINTS.filter(k => byK[k.id] !== 8);
-if (uneven.length) warn.push('题数不是8的知识点: ' + uneven.map(k => k.id + '(' + (byK[k.id] || 0) + ')').join(', '));
+const types = {};
+QUESTIONS.forEach(q => { types[q.type] = (types[q.type] || 0) + 1; });
+console.log('题型分布:', JSON.stringify(types));
+const uneven = KNOWLEDGE_POINTS.filter(k => byK[k.id] < 8);
+if (uneven.length) warn.push('题数少于8的知识点: ' + uneven.map(k => k.id + '(' + (byK[k.id] || 0) + ')').join(', '));
 
+const TYPE_NEEDS_OPTS = { choice: 1, listen: 1, fill: 1 };
 const ids = new Set();
 QUESTIONS.forEach((q, n) => {
   const tag = `#${n} ${q.id} ${q.content}`;
@@ -54,14 +58,38 @@ QUESTIONS.forEach((q, n) => {
   ids.add(q.id);
   if (!kpIds.has(q.knowledge)) errs.push(tag + ' 知识点不存在: ' + q.knowledge);
   if (!q.why) warn.push(tag + ' 缺少一句话说明(why)');
-  if (!Array.isArray(q.options) || q.options.length !== 4) errs.push(tag + ' 选项数不是4');
-  else if (new Set(q.options).size !== 4) errs.push(tag + ' 选项有重复: ' + JSON.stringify(q.options));
-  if (typeof q.answer !== 'number' || q.answer < 0 || q.answer >= 4) errs.push(tag + ' answer 下标非法');
+  if (!q.type) errs.push(tag + ' 缺少 type');
+
+  if (TYPE_NEEDS_OPTS[q.type]) {
+    if (!Array.isArray(q.options) || q.options.length !== 4) errs.push(tag + ' 选项数不是4');
+    else if (new Set(q.options).size !== 4) errs.push(tag + ' 选项有重复: ' + JSON.stringify(q.options));
+    if (typeof q.answer !== 'number' || q.answer < 0 || q.answer >= 4) errs.push(tag + ' answer 下标非法');
+  }
+  if (q.type === 'listen' && !q.hideWord) errs.push(tag + ' listen 题缺少 hideWord');
+  if (q.type === 'judge') {
+    if (typeof q.judgePinyin !== 'string' || !q.judgePinyin) errs.push(tag + ' judge 缺 judgePinyin');
+    if (typeof q.judgeOk !== 'boolean') errs.push(tag + ' judge 缺 judgeOk');
+  }
+  if (q.type === 'match') {
+    if (!Array.isArray(q.pairs) || q.pairs.length !== 4) errs.push(tag + ' match 必须恰好 4 对');
+    else {
+      const pys = q.pairs.map(p => p[1]);
+      if (new Set(pys).size !== 4) errs.push(tag + ' match 拼音有重复: ' + pys.join(','));
+      const cs = q.pairs.map(p => p[0]);
+      if (new Set(cs).size !== 4) errs.push(tag + ' match 汉字有重复');
+    }
+  }
+  if (q.type === 'spell') {
+    if (!Array.isArray(q.tiles) || q.tiles.length < 2) errs.push(tag + ' spell 缺 tiles');
+    if (!Array.isArray(q.extraTiles) || !q.extraTiles.length) errs.push(tag + ' spell 缺 extraTiles');
+  }
   if (q.content.length > 4) errs.push(tag + ' 题面过长');
+  if (q.type !== 'match' && q.type !== 'choice' && !q.audioId) warn.push(tag + ' 未指定 audioId（会生成独立语音文件）');
 });
 
 const seen = {};
 QUESTIONS.forEach(q => {
+  if (q.type !== 'choice') return;
   const key = q.knowledge + '|' + q.content;
   if (seen[key]) errs.push('同知识点内题面重复: ' + key);
   seen[key] = 1;
@@ -69,14 +97,19 @@ QUESTIONS.forEach(q => {
 
 console.log('装扮数量:', OUTFITS.length);
 const oIds = new Set();
-const slots = ['hat', 'eyes', 'top', 'bottom', 'shoes', 'back', 'hand'];
+const slots = ['hat', 'eyes', 'ear', 'neck', 'wrist', 'top', 'cape', 'bottom', 'shoes', 'back', 'hand', 'pet', 'vehicle'];
 OUTFITS.forEach(o => {
   if (oIds.has(o.id)) errs.push('装扮 id 重复: ' + o.id);
   oIds.add(o.id);
   if (slots.indexOf(o.slot) < 0) errs.push('装扮槽位非法: ' + o.id + '/' + o.slot);
   if (!o.name || typeof o.cost !== 'number') errs.push('装扮字段不全: ' + o.id);
   if (!AV_ART[o.id]) errs.push('装扮缺少图形(AV_ART): ' + o.id);
-  else if (!Avatar.itemIcon(o.id)) errs.push('装扮图标生成失败: ' + o.id);
+  else if (!Avatar.itemIcon(o.id, o.slot)) errs.push('装扮图标生成失败: ' + o.id);
+});
+// 每个槽位至少 3 件
+slots.forEach(s => {
+  const c = OUTFITS.filter(o => o.slot === s).length;
+  if (c < 3) warn.push('槽位 ' + s + ' 只有 ' + c + ' 件');
 });
 [BASE_TOP, BASE_BOTTOM, 'shoe_base'].forEach(id => {
   if (!AV_ART[id]) errs.push('默认穿搭缺少图形: ' + id);
@@ -91,13 +124,35 @@ OUTFITS.forEach(o => {
   }
 });
 
-// 语音文件是否齐全
+// 语音文件是否齐全（按 audioId 去重：新题型复用选择题语音）
 const qdir = path.join(ROOT, 'audio', 'q');
 const edir = path.join(ROOT, 'audio', 'e');
+const needIds = [...new Set(QUESTIONS.filter(q => !q.noAudio).map(q => q.audioId || q.id))];
 if (fs.existsSync(qdir)) {
-  const missQ = QUESTIONS.filter(q => !fs.existsSync(path.join(qdir, q.id + '.mp3')));
-  if (missQ.length) warn.push('缺少题目语音 ' + missQ.length + ' 个（会自动降级到浏览器合成）: ' + missQ.slice(0, 5).map(q => q.id).join(',') + (missQ.length > 5 ? ' …' : ''));
+  const missQ = needIds.filter(id => !fs.existsSync(path.join(qdir, id + '.mp3')));
+  if (missQ.length) warn.push('缺少题目语音 ' + missQ.length + ' 个（会自动降级到浏览器合成）: ' + missQ.slice(0, 5).join(',') + (missQ.length > 5 ? ' …' : ''));
 } else warn.push('未找到 audio/q 目录，将使用浏览器语音合成');
+
+// 音频复用一致性：新题型（听音/判断/填空/拼读）会共用选择题的录音，
+// 如果 audioId 指向的那道选择题问面字不同，就会出现「听到的是 A、题目问的是 B」的严重错误
+const choiceById = {};
+QUESTIONS.filter(q => q.type === 'choice').forEach(q => { choiceById[q.id] = q; });
+QUESTIONS.forEach(q => {
+  if (q.noAudio || !q.audioId) return;
+  const src = choiceById[q.audioId];
+  if (!src) {
+    if (errs.length < 200) errs.push(`${q.id}: audioId「${q.audioId}」不存在对应的选择题语音`);
+  } else if (src.content !== q.content) {
+    errs.push(`${q.id}: 题面「${q.content}」但复用 ${q.audioId} 的语音，而那条录的是「${src.content}」`);
+  }
+});
+
+// 填空题：▢ 必须在显示串里，且候选块不能重复
+QUESTIONS.filter(q => q.type === 'fill').forEach(q => {
+  if (!q.display || q.display.indexOf('▢') < 0) errs.push(`${q.id}: 填空题缺少 ▢ 空位`);
+  if (new Set(q.options).size !== q.options.length) errs.push(`${q.id}: 填空候选块有重复`);
+  if (q.options.some(o => !o)) errs.push(`${q.id}: 填空有空的候选块`);
+});
 
 if (fs.existsSync(edir)) {
   const missE = KNOWLEDGE_POINTS.filter(k => !fs.existsSync(path.join(edir, k.id + '.mp3')));

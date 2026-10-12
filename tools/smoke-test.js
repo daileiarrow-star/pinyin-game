@@ -56,6 +56,8 @@ async function loadPage(opts) {
     setTimeout(res, 5000);
   });
   await sleep(150);
+  /* 随机彩蛋受 Math.random 影响，会让主流程断言偶发失败；默认关掉，专门测它时再打开 */
+  dom.window.eval('CONFIG.eggChance = 0');
   return dom;
 }
 
@@ -387,14 +389,54 @@ async function main() {
   click($('btn-egg'));
   await sleep(200);
   ok('点击后蛋进入开启动画', /opening/.test(d.getElementById('btn-egg').className));
-  await sleep(1200);
-  ok('动画结束后弹出奖品', d.getElementById('modal-reward').classList.contains('show'));
+  /* 开箱动画总长 1.45s，1.55s 后才切奖品弹窗 —— 必须等够，否则会误报 */
+  let okRw = false;
+  for (let i = 0; i < 20 && !okRw; i++) { await sleep(150); okRw = d.getElementById('modal-reward').classList.contains('show'); }
+  ok('动画结束后弹出奖品', okRw);
   ok('奖品是装扮图形（不再是缺失的 emoji）', !!d.querySelector('#rw-item .rw-icon svg'));
   ok('开箱时撒了彩带粒子', d.querySelectorAll('#modal-reward .cf').length >= 10,
     String(d.querySelectorAll('#modal-reward .cf').length));
   ok('装扮已收入衣柜', a.state().owned.length >= 1, String(a.state().owned.length));
   click($('btn-rw-ok'));
   await sleep(80);
+
+  /* ================= 随机彩蛋：答对后不定时掉落，不打断本轮 ================= */
+  console.log('\n【随机彩蛋】');
+  w.eval('CONFIG.eggChance = 1; CONFIG.eggPerSession = 1;');   // 100% 触发，保证可测
+  w.eval('(function(){ var S=__pyTest.S(); S.paid=true; S.dayCount=0; S.eggToday=0; })()');
+  w.eval('__pyTest.start()');
+  await sleep(250);
+  const idxBefore = d.getElementById('pd-index').textContent;
+  await answerCur(a, false);
+  await sleep(1200);
+  ok('答对后不定时掉落彩蛋', d.getElementById('modal-egg').classList.contains('show'));
+  ok('掉落时仍停在练习页（本轮进度不丢）', activePage() === 'page-practice', activePage());
+  ok('掉落的是蛋而不是直接给奖品', !d.getElementById('modal-reward').classList.contains('show'));
+  click($('btn-egg'));
+  let rwMid = false;
+  for (let i = 0; i < 20 && !rwMid; i++) { await sleep(150); rwMid = d.getElementById('modal-reward').classList.contains('show'); }
+  ok('中途掉的彩蛋同样有完整开箱动画', rwMid);
+  click($('btn-rw-ok'));
+  await sleep(300);
+  ok('收下后继续出下一题（不卡死）',
+    activePage() === 'page-practice' && !!a.cur(), activePage() + ' / ' + (a.cur() ? '有题' : '无题'));
+  ok('继续的是下一题而不是从头再来',
+    d.getElementById('pd-index').textContent !== idxBefore,
+    idxBefore + ' → ' + d.getElementById('pd-index').textContent);
+  await answerCur(a, false);
+  await sleep(1200);
+  ok('每局限量生效（第二题答对不再弹蛋）',
+    !d.getElementById('modal-egg').classList.contains('show') && activePage() === 'page-practice');
+  /* 还原状态，免得影响后面的流程 */
+  w.eval('CONFIG.eggChance = 0');
+  w.eval('(function(){ var S=__pyTest.S(); S.paid=false; })()');
+  click($('btn-quit'));
+  await sleep(160);
+  if (d.getElementById('modal-confirm').classList.contains('show')) {
+    click($('btn-cf-yes'));
+    await sleep(200);
+  }
+  ok('中途退出后回到结算页', activePage() === 'page-result', activePage());
 
   /* ================= 底部导航栏 ================= */
   console.log('\n【底部导航栏】');

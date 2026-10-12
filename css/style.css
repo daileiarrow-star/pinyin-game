@@ -383,7 +383,9 @@ body.with-tab .toast{bottom:calc(96px + env(safe-area-inset-bottom))}
   animation:eggIdle 1.6s ease-in-out infinite;
 }
 @keyframes eggIdle{0%,100%{transform:rotate(-4deg) scale(1)}50%{transform:rotate(4deg) scale(1.04)}}
-.egg.opening{animation:eggShake .55s ease-in-out 2, eggBoom .55s ease-in .95s forwards}
+/* 先摇 .45s×2=0.9s，再爆开 .55s（延迟 .9s 起，1.45s 结束）
+   ★ js 里关弹窗的 setTimeout 必须大于 1.45s，否则爆开特效会被截断看不到 */
+.egg.opening{animation:eggShake .45s ease-in-out 2, eggBoom .55s ease-in .9s forwards}
 @keyframes eggShake{
   0%,100%{transform:rotate(-9deg) scale(1.02)}
   25%{transform:rotate(10deg) scale(1.05)}

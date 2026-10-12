@@ -8,7 +8,7 @@
   /* ============ 常量 ============ */
   var LS_KEY = 'pinyin_daren_v3';   // v3：槽位扩到 13 个、题库加题型，旧进度不迁移
   var SLOTS = ['hat', 'eyes', 'ear', 'neck', 'wrist', 'top', 'cape', 'bottom', 'shoes', 'back', 'hand', 'pet', 'vehicle'];
-  var PURCHASE_EGG_EVERY = 3;   // 每掌握 3 个知识点触发一次彩蛋
+  var PURCHASE_EGG_EVERY = 2;   // 每掌握 2 个知识点触发一次里程碑彩蛋
   var DAY_EGG_EVERY = 3;        // 连续练习满 3 天触发一次彩蛋
 
   /* ============ 状态 ============ */
@@ -32,6 +32,7 @@
       totalCorrect: 0,
       playDays: [],
       eggGot: {},       // 彩蛋领取记录（防重复）
+      eggToday: 0,      // 今天已随机掉落的彩蛋数
       rounds: 0
     };
   }
@@ -168,6 +169,7 @@
     S.day = t;
     S.dayCount = 0;
     S.dayCorrect = 0;
+    S.eggToday = 0;
     if (S.playDays.indexOf(t) < 0) S.playDays.push(t);
     if (S.playDays.length > 400) S.playDays = S.playDays.slice(-400);
     save();
@@ -656,7 +658,13 @@
       checkMastery(it.knowledge);
       save();
       beep('good');
-      setTimeout(advance, 780);
+      /* 随机彩蛋：答对后小概率掉落。弹出期间不再推进，等家长/孩子点「收下啦」再继续下一题 */
+      if (maybeRandomEgg()) {
+        SS.eggResume = true;
+        setTimeout(function () { showReward({ reason: '答题时手气爆棚' }); }, 780);
+      } else {
+        setTimeout(advance, 780);
+      }
     } else {
       SS.streak = 0;
       S.wrong[it.id] = (S.wrong[it.id] || 0) + 1;
@@ -850,6 +858,18 @@
   }
 
   /* ============ 彩蛋判定 ============ */
+
+  /* 随机彩蛋：答对一题后小概率掉落，每局 / 每天有上限，避免连环弹窗 */
+  function maybeRandomEgg() {
+    if (!CONFIG.eggChance) return false;
+    if (!SS || (SS.eggDropped || 0) >= (CONFIG.eggPerSession || 1)) return false;
+    if ((S.eggToday || 0) >= (CONFIG.eggPerDay || 3)) return false;
+    if (Math.random() >= CONFIG.eggChance) return false;
+    SS.eggDropped = (SS.eggDropped || 0) + 1;
+    S.eggToday = (S.eggToday || 0) + 1;
+    return true;
+  }
+
   function collectEggs() {
     var m = masteredCount();
     var keyM = 'm' + Math.floor(m / PURCHASE_EGG_EVERY);
@@ -957,7 +977,13 @@
       }
       showModal('modal-reward');
       confetti($('modal-reward'));
-    }, 1050);
+    }, 1550);   // 必须盖过 CSS：摇晃 .45s×2 + 爆开延迟 .9s + 时长 .55s = 1.45s，留 0.1s 缓冲
+  }
+
+  /* 关掉奖品弹窗。如果这颗彩蛋是练习中途掉的，关掉后要接着出下一题（否则会卡住） */
+  function closeReward() {
+    hideModal('modal-reward');
+    if (SS && SS.eggResume) { SS.eggResume = false; advance(); }
   }
 
   /* 彩带粒子 */
@@ -1209,14 +1235,16 @@
       } else { toast(url); }
     };
 
-    $('btn-rw-ok').onclick = function () { hideModal('modal-reward'); };
+    $('btn-rw-ok').onclick = closeReward;
     $('btn-egg').onclick = openEgg;
     $('btn-pay-close').onclick = function () { hideModal('modal-pay'); };
     $('btn-code').onclick = redeem;
     $('inp-code').addEventListener('keydown', function (e) { if (e.key === 'Enter') redeem(); });
 
     // 点击弹窗遮罩关闭（讲解弹窗除外，必须点按钮）
-    ['modal-reward', 'modal-pay', 'modal-confirm'].forEach(function (id) {
+    // 奖品弹窗单独走 closeReward：中途掉的彩蛋要靠它恢复出题
+    $('modal-reward').addEventListener('click', function (e) { if (e.target === this) closeReward(); });
+    ['modal-pay', 'modal-confirm'].forEach(function (id) {
       $(id).addEventListener('click', function (e) { if (e.target === this) hideModal(id); });
     });
   }

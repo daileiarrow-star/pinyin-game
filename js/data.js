@@ -13,6 +13,10 @@ const CONFIG = {
   brand: '拼音小达人',
   sessionLength: 20,        // 每轮练习题数
   freeDailyLimit: 10,       // 免费版每日题数上限
+  /* ---- 随机彩蛋（答对后小概率掉落，让孩子练着练着有惊喜）---- */
+  eggChance: 0.05,          // 每答对一题的掉落概率
+  eggPerSession: 1,         // 每局最多掉几个（避免连环弹窗打断练习）
+  eggPerDay: 3,             // 每天最多掉几个
   // 50 个独立激活码：每个家长一个，便于对账。完整清单见项目外层「激活码清单.csv」
   activationCodes: [
     'PY2GR9DW', 'PY2NEGTP', 'PY2R5GUX', 'PY2UDR7J', 'PY2YKFQH',

@@ -175,6 +175,7 @@ CODES.forEach(c => {
   if (/[0O1IL]/.test(c)) warn.push('激活码含易混字符 0/O/1/I/L，家长容易输错: ' + c);
 });
 if (!CONFIG.contact || /your_wechat_id|占位/i.test(CONFIG.contact)) errs.push('CONFIG.contact 还是占位值，家长付完款找不到客服');
+if (CONFIG.eggChance !== undefined && (CONFIG.eggChance < 0 || CONFIG.eggChance > 1)) errs.push('CONFIG.eggChance 必须在 0 ~ 1 之间（是概率，不是百分比）');
 if (!CONFIG.qrImage) errs.push('CONFIG.qrImage 未配置');
 else if (!fs.existsSync(path.join(ROOT, CONFIG.qrImage))) warn.push('收款码图片不存在: ' + CONFIG.qrImage);
 

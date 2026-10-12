@@ -185,7 +185,7 @@ async function main() {
   /* ================= 题库数据 ================= */
   console.log('\n【题库自检】');
   const qCount = w.eval('QUESTIONS.length');
-  ok('题库题量充足（≥560 题）', qCount >= 560, String(qCount));
+  ok('题库题量充足（≥540 题）', qCount >= 540, String(qCount));
   /* 不写死题量：只断言真正的不变式 —— 每个知识点都练够、且题型有变化 */
   const cov = JSON.parse(w.eval(`(function(){
     var by={};
@@ -202,7 +202,15 @@ async function main() {
     thin.map(c => c.id + '(' + c.n + ')').join(','));
   ok('每个知识点至少覆盖 4 种题型', mono.length === 0,
     mono.map(c => c.id + '(' + c.t + '种)').join(','));
-  ok('知识点 34 个', w.eval('KNOWLEDGE_POINTS.length') === 34);
+  ok('知识点 ≥30 个', w.eval('KNOWLEDGE_POINTS.length') >= 30, String(w.eval('KNOWLEDGE_POINTS.length')));
+  /* 反回归：家长反馈「妈 mā」这类单字声调辨别对学过拼音的孩子过基础，
+     已整体移除（tone_1_2 / tone_2_3 / tone_3_4）。这里加断言防止以后又被补回来。 */
+  ok('不含单字声调辨别题（tone_1_2 / tone_2_3 / tone_3_4 已移除）',
+    w.eval(`(function(){
+      var re = /^tone_[1-4]_[1-4]$/;
+      return !KNOWLEDGE_POINTS.some(function(k){ return re.test(k.id); })
+          && !QUESTIONS.some(function(q){ return re.test(q.knowledge); });
+    })()`));
   ok('7 种题型都齐了',
     ['choice', 'listen', 'judge', 'match', 'fill', 'spell', 'classify'].every(t => w.eval('QUESTIONS.some(function(q){return q.type==="' + t + '"})')));
   ok('每个知识点都有讲解',

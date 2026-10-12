@@ -421,8 +421,11 @@ body.with-tab .toast{bottom:calc(96px + env(safe-area-inset-bottom))}
 .q-listen .q-word:active{transform:scale(.94)}
 .q-listen{background:linear-gradient(160deg,#F3EFFF,#EAF4FF)}
 
-/* 判断对错 */
-.options-judge{flex-direction:column;gap:12px}
+/* 判断对错
+   ★ 必须显式写 display:flex —— 基类 .options 是 display:grid（两列），
+     只写 flex-direction 对 grid 容器完全无效，会导致题面和按钮被塞进
+     左右两列、挤在右侧。这三个类都要自己把 display 掰成 flex。 */
+.options-judge{display:flex;flex-direction:column;gap:12px}
 .judge-card{
   background:#F7F6FF;border-radius:22px;padding:16px;text-align:center;
   border:2px dashed #D9D3F2;
@@ -434,11 +437,11 @@ body.with-tab .toast{bottom:calc(96px + env(safe-area-inset-bottom))}
 .judge-btn{flex:1;font-size:20px;font-weight:800;padding:16px 8px}
 .judge-row .opt.wrong{opacity:.85}
 
-/* 连线配对 */
-.options-match{flex-direction:column;gap:10px}
-.match-hint{font-size:13px;color:var(--ink2);font-weight:700}
-.match-wrap{display:flex;gap:10px;justify-content:center;width:100%}
-.match-col{flex:1;display:flex;flex-direction:column;gap:9px;max-width:170px}
+/* 连线配对（同上：覆盖掉基类的 grid，改成纵向 flex） */
+.options-match{display:flex;flex-direction:column;gap:11px}
+.match-hint{font-size:13px;color:var(--ink2);font-weight:700;text-align:center}
+.match-wrap{display:flex;gap:12px;justify-content:center;width:100%}
+.match-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:9px;max-width:172px}
 .match-cell{
   background:#fff;border:2.5px solid var(--line);border-radius:16px;
   padding:12px 6px;font-size:20px;font-weight:800;color:var(--ink);
@@ -460,8 +463,8 @@ body.with-tab .toast{bottom:calc(96px + env(safe-area-inset-bottom))}
   font-weight:700;padding-top:2px;
 }
 
-/* 拼读积木 */
-.options-spell{flex-direction:column;gap:12px}
+/* 拼读积木（同上：必须显式 display:flex） */
+.options-spell{display:flex;flex-direction:column;gap:12px}
 .spell-hint{font-size:13.5px;color:var(--ink2);font-weight:700;text-align:center}
 .spell-slot{display:flex;gap:7px;justify-content:center;min-height:52px}
 .ss-cell{

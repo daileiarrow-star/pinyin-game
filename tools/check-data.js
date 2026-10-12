@@ -25,6 +25,19 @@ KNOWLEDGE_POINTS.forEach(k => {
   if (!k.name || !k.category) errs.push('知识点字段不全: ' + k.id);
 });
 
+/* ---------- 已按家长反馈移除的低难度内容：不能再复活 ----------
+   单字声调辨别（一声/二声/三声/四声两两对比，如「妈 mā」）对学过拼音的
+   孩子过于基础，不属于本 App 要练的易错点，考纲 200 道例题里也没有这一类。
+   （真正的声调易错点仍在：轻声 neutral、iu/ui 标调 mark_iu、标调位置
+     mark_rule、三声连读 tone_3sandhi、「一/不」变调 yi_bu） */
+const REMOVED_KP = /^tone_[1-4]_[1-4]$/;
+KNOWLEDGE_POINTS.forEach(k => {
+  if (REMOVED_KP.test(k.id)) errs.push('已移除的单字声调知识点又出现了: ' + k.id);
+});
+QUESTIONS.forEach(q => {
+  if (REMOVED_KP.test(q.knowledge)) errs.push('仍有题目挂在已移除的单字声调知识点上: ' + q.id);
+});
+
 const missingExp = KNOWLEDGE_POINTS.filter(k => !EXPLANATIONS[k.id]);
 if (missingExp.length) errs.push('缺少讲解: ' + missingExp.map(k => k.id).join(','));
 const orphanExp = Object.keys(EXPLANATIONS).filter(k => !kpIds.has(k));
@@ -178,6 +191,24 @@ if (!CONFIG.contact || /your_wechat_id|占位/i.test(CONFIG.contact)) errs.push(
 if (CONFIG.eggChance !== undefined && (CONFIG.eggChance < 0 || CONFIG.eggChance > 1)) errs.push('CONFIG.eggChance 必须在 0 ~ 1 之间（是概率，不是百分比）');
 if (!CONFIG.qrImage) errs.push('CONFIG.qrImage 未配置');
 else if (!fs.existsSync(path.join(ROOT, CONFIG.qrImage))) warn.push('收款码图片不存在: ' + CONFIG.qrImage);
+
+/* ---------- CSS 布局守卫（防止老 bug 复发）----------
+   基类 .options 是 display:grid 两列。判断题 / 连线题 / 拼读积木这三个容器的
+   内容应该是「上下排列」的，必须自己显式写 display:flex —— 
+   只写 flex-direction:column 对 grid 容器无效，结果就是提示文字和题面被
+   塞进同一行的左右两列、整块挤到右边（家长已反馈过连线题这个现象）。 */
+const cssText = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8');
+['options-judge', 'options-match', 'options-spell'].forEach(cls => {
+  const m = cssText.match(new RegExp('\\.' + cls + '\\s*\\{([^}]*)\\}'));
+  if (!m) { errs.push('CSS 里找不到规则 .' + cls); return; }
+  if (!/display\s*:\s*flex/.test(m[1])) {
+    errs.push('.' + cls + ' 必须显式写 display:flex —— 基类 .options 是 grid 两列，' +
+      '只写 flex-direction 无效，会把内容挤到右侧');
+  }
+  if (!/flex-direction\s*:\s*column/.test(m[1])) {
+    errs.push('.' + cls + ' 应当纵向排列（flex-direction:column）');
+  }
+});
 
 if (fs.existsSync(edir)) {
   const missE = KNOWLEDGE_POINTS.filter(k => !fs.existsSync(path.join(edir, k.id + '.mp3')));

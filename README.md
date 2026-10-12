@@ -108,7 +108,7 @@ git push -u origin main
 如果它改成要你输入用户名/密码：**密码位置要填 Personal Access Token**，不是登录密码。
 生成方式：GitHub 右上角头像 → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token → 勾选 `repo` → 生成后复制那串字符当密码用。
 
-> 推送成功后刷新 GitHub 页面，应该能看到 269 个文件（含 261 个语音文件）。
+> 推送成功后刷新 GitHub 页面，应该能看到 **647 个文件**（含 630 个语音文件）。
 
 ---
 

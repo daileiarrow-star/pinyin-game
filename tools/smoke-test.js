@@ -501,10 +501,11 @@ async function main() {
   click($('btn-code'));
   await sleep(40);
   ok('错误激活码被拒绝', /激活码不对/.test(a.toast()), a.toast());
-  $('inp-code').value = 'PINYIN2026';
+  const validCode = w.eval('CONFIG.activationCodes[0]');
+  $('inp-code').value = validCode;
   click($('btn-code'));
   await sleep(40);
-  ok('正确激活码可开通', /开通成功/.test(a.toast()), a.toast());
+  ok('正确激活码可开通（' + validCode + '）', /开通成功/.test(a.toast()), a.toast());
   click($('btn-pay-close'));
   await sleep(60);
 

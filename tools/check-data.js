@@ -8,7 +8,7 @@ const api = new Function(
   read('data.js') + '\n' + read('questions.js') + '\n' + read('illus.js') + '\n' + read('avatar.js') +
   '\n;return {KNOWLEDGE_POINTS, EXPLANATIONS, QUESTIONS, OUTFITS, CONFIG, renderIllustration, Avatar, AV_ART, BASE_TOP, BASE_BOTTOM};'
 )();
-const { KNOWLEDGE_POINTS, EXPLANATIONS, QUESTIONS, OUTFITS, renderIllustration, Avatar, AV_ART, BASE_TOP, BASE_BOTTOM } = api;
+const { KNOWLEDGE_POINTS, EXPLANATIONS, QUESTIONS, OUTFITS, renderIllustration, Avatar, AV_ART, BASE_TOP, BASE_BOTTOM, CONFIG } = api;
 
 const errs = [], warn = [];
 
@@ -160,6 +160,23 @@ QUESTIONS.filter(q => q.type === 'fill').forEach(q => {
   if (new Set(q.options).size !== q.options.length) errs.push(`${q.id}: 填空候选块有重复`);
   if (q.options.some(o => !o)) errs.push(`${q.id}: 填空有空的候选块`);
 });
+
+/* ---------- 上线配置自检（激活码 / 客服 / 收款码）---------- */
+const CODES = CONFIG.activationCodes || [];
+console.log('激活码数量:', CODES.length);
+if (!CODES.length) errs.push('CONFIG.activationCodes 为空：家长付款后无法开通');
+if (new Set(CODES).size !== CODES.length) {
+  const dup = [...new Set(CODES.filter((c, i) => CODES.indexOf(c) !== i))];
+  errs.push('激活码有重复: ' + dup.join(','));
+}
+CODES.forEach(c => {
+  if (!/^[A-Z0-9]+$/.test(c)) errs.push('激活码只能由大写字母和数字组成（输入框会自动转大写）: ' + c);
+  if (c.length < 6) errs.push('激活码短于 6 位，容易被猜中: ' + c);
+  if (/[0O1IL]/.test(c)) warn.push('激活码含易混字符 0/O/1/I/L，家长容易输错: ' + c);
+});
+if (!CONFIG.contact || /your_wechat_id|占位/i.test(CONFIG.contact)) errs.push('CONFIG.contact 还是占位值，家长付完款找不到客服');
+if (!CONFIG.qrImage) errs.push('CONFIG.qrImage 未配置');
+else if (!fs.existsSync(path.join(ROOT, CONFIG.qrImage))) warn.push('收款码图片不存在: ' + CONFIG.qrImage);
 
 if (fs.existsSync(edir)) {
   const missE = KNOWLEDGE_POINTS.filter(k => !fs.existsSync(path.join(edir, k.id + '.mp3')));

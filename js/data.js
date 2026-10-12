@@ -13,10 +13,21 @@ const CONFIG = {
   brand: '拼音小达人',
   sessionLength: 20,        // 每轮练习题数
   freeDailyLimit: 10,       // 免费版每日题数上限
-  // ⚠️ 上线前请务必改成你自己的激活码
-  activationCodes: ['PINYIN2026', 'PYDADA2026'],
+  // 50 个独立激活码：每个家长一个，便于对账。完整清单见项目外层「激活码清单.csv」
+  activationCodes: [
+    'PY2GR9DW', 'PY2NEGTP', 'PY2R5GUX', 'PY2UDR7J', 'PY2YKFQH',
+    'PY3CAYFG', 'PY492SKF', 'PY5FYNHD', 'PY98A3US', 'PY9YBG78',
+    'PY9YUUPC', 'PYA8T3FC', 'PYAD7WWT', 'PYBYUZDN', 'PYC7GQ35',
+    'PYCG7PDZ', 'PYCXNAJR', 'PYE4JW3D', 'PYE7AJEU', 'PYE87EKU',
+    'PYFFPWD4', 'PYFWASWR', 'PYGF6MNF', 'PYGSW5A8', 'PYGWD2SC',
+    'PYHG9DNW', 'PYJGW4QX', 'PYKYPNP2', 'PYM7JQUJ', 'PYMT9RV9',
+    'PYPD8SUQ', 'PYPHAE8K', 'PYQDE9C2', 'PYQF3EHW', 'PYQP8M7K',
+    'PYQQRWKF', 'PYS7JKQH', 'PYSGRWJU', 'PYSTW8WD', 'PYSWFJ97',
+    'PYU3YBBM', 'PYU997GC', 'PYUC8TT5', 'PYVES5EV', 'PYVSWEZY',
+    'PYW7UC3X', 'PYXQ8MQM', 'PYXWTBNR', 'PYYS62TU', 'PYZPCUPS',
+  ],
   qrImage: 'assets/qrcode.png',
-  contact: '微信：your_wechat_id',
+  contact: '微信：Arrowunique',
   audioBase: 'audio/'       // 预生成语音目录（没有该目录时自动降级到浏览器语音合成）
 };
 

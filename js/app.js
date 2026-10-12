@@ -1150,7 +1150,7 @@
 
   /* ============ 支付 ============ */
   function openPay() {
-    $('pay-note').innerHTML = '扫码支付 ¥9.9 后，把激活码发给客服获取并填在下面。<br>' +
+    $('pay-note').innerHTML = '扫码支付 ¥9.9 → 加客服微信领取激活码 → 填在下面即可开通完整版。<br>' +
       '<span style="color:#A9A6C0">客服 ' + CONFIG.contact + '</span>';
     var box = $('qr-box');
     box.innerHTML = '';

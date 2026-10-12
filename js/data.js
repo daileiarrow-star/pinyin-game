@@ -71,7 +71,14 @@ const KNOWLEDGE_POINTS = [
 
   /* ===== 语流音变：最容易被忽略的易错点（2）===== */
   { id:'tone_3sandhi', name:'两个三声连读（前一个变二声）', tag:'三声连读', category:'语流音变', tip:'你好 → ní hǎo' },
-  { id:'yi_bu',        name:'「一」「不」的变调',           tag:'一 / 不 变调', category:'语流音变', tip:'一个 yí gè，一天 yì tiān' }
+  { id:'yi_bu',        name:'「一」「不」的变调',           tag:'一 / 不 变调', category:'语流音变', tip:'一个 yí gè，一天 yì tiān' },
+
+  /* ===== v4 新增：考纲里最常单独拎出来考的五类易错点（5）===== */
+  { id:'apostrophe',     name:'隔音符号不能忘',       tag:"隔音符号 '",   category:'隔音符号', tip:"a o e 开头的音节跟在别人后面，中间要加 ' " },
+  { id:'mark_rule',      name:'声调标在哪个字母上',   tag:'标调位置',     category:'标调',     tip:'有 a 标 a，没 a 找 o e，i u 并列标在后' },
+  { id:'y_w_rule',       name:'i u ü 开头要加 y w',   tag:'y / w 起头',   category:'整体认读', tip:'i→yi，u→wu，ü→yu，不能只写 ī ū ǘ' },
+  { id:'zhengti_judge',  name:'哪些是整体认读音节',   tag:'整体认读判断', category:'整体认读', tip:'zhi chi shi ri / zi ci si / yi wu yu / ye yue yuan / yin yun ying 共 16 个' },
+  { id:'comprehensive',  name:'最容易读错的字',       tag:'易错字音',     category:'综合',     tip:'这些字一读就错，不能靠猜，要单独记' }
 ];
 
 /* ---------- 29 条图文讲解（答错时弹出：图 + 口诀 + 例词 + 提醒）
@@ -315,6 +322,48 @@ const EXPLANATIONS = {
     key:'一不变调看后面：四声前读二声，其他读四声。',
     pairs:[['一个','yí gè'],['一天','yì tiān'],['不对','bú duì'],['第一','dì yī']],
     warn:'「第一 dì yī」里的一永远读 yī，因为它是序数词。'
+  },
+
+  /* ---------- v4 新增的 5 条讲解 ---------- */
+  apostrophe: {
+    title:'隔音符号：别把两个音节粘成一个',
+    illus:{ type:'build', wrong:['xi','an'], right:"xī'ān", note:'两个音节中间要隔开' },
+    one:"一个音节以 a、o、e 开头，而它前面还有别的音节时，中间要写一个隔音符号（'），不然会被当成一个音节读错。",
+    key:'a、o、e 开头的音节跟在别人后面，中间别忘了加隔音符号。',
+    pairs:[['西安',"xī'ān"],['方案',"fāng'àn"],['女儿',"nǚ'ér"],['海鸥',"hǎi'ōu"]],
+    warn:"不写隔音符号，「西安 xī'ān」就变成「先 xiān」，「方案 fāng'àn」就变成「fāngàn」。"
+  },
+  mark_rule: {
+    title:'声调标在哪个字母上',
+    illus:{ type:'mark', word:'duo', on:2, result:'duō', note:'有 a 就标 a；没 a 先找 o、e' },
+    one:'标调是有先后顺序的：先看有没有 a，有 a 就标在 a 上；没有 a 再看有没有 o、e，标在 o 或 e 上；i、u 挨在一起时标在后面那个字母上。',
+    key:'有 a 别放过，没 a 找 o e，i u 并列标在后。',
+    pairs:[['天','tiān'],['高','gāo'],['多','duō'],['说','shuō']],
+    warn:'写成 tīan、dūo、shūo 都是把调号放错了字母。'
+  },
+  y_w_rule: {
+    title:'i u ü 打头，要请 y 和 w 帮忙',
+    illus:{ type:'build', wrong:['ī','ū','ǘ'], right:'yī wū yú', note:'i→y，u→w，ü→y 并去两点' },
+    one:'i、u、ü 开头的音节不能光写字母：i 前面加 y，u 前面加 w，ü 前面加 y 并且去掉两点。',
+    key:'i 前加 y，u 前加 w，ü 见 y 就脱帽。',
+    pairs:[['衣','yī'],['乌','wū'],['鸭','yā'],['我','wǒ']],
+    warn:'写成 ī、ū、ǘ，或者 iā、uō，都是错的。'
+  },
+  zhengti_judge: {
+    title:'哪些是整体认读音节',
+    illus:{ type:'build', wrong:['zhi','chi','shi','ri'], right:'整体认读 16 个', note:'看到就整个读，不要拼' },
+    one:'整体认读音节一共 16 个：zhi chi shi ri、zi ci si、yi wu yu、ye yue yuan、yin yun ying。看到它们要整个读出来，不能拆开拼。',
+    key:'zhi chi shi ri / zi ci si / yi wu yu / ye yue yuan yin yun ying，一共 16 个。',
+    pairs:[['知','zhī'],['日','rì'],['鱼','yú'],['英','yīng']],
+    warn:'yan、wang、you、yao 都不是整体认读音节，要一个一个拼出来。'
+  },
+  comprehensive: {
+    title:'最容易读错的字，单独记牢',
+    illus:{ type:'build', wrong:['yìn','chù'], right:'yīn wèi chǔ lǐ', note:'这些字一读就错' },
+    one:'有些字看着简单，其实一读就错：因为 yīn wèi、处理 chǔ lǐ、比较 bǐ jiào、友谊 yǒu yì、亚洲 yà zhōu、活泼 huó pō。',
+    key:'这些字要一个一个记住，不能靠猜。',
+    pairs:[['因为','yīn wèi'],['骨头','gǔ tou'],['萝卜','luó bo'],['附近','fù jìn']],
+    warn:'「因为」读 yīn wèi（不是 yìn wéi），「比较」读 bǐ jiào（不是 bǐ jiǎo）。'
   }
 };
 

@@ -83,7 +83,7 @@ async function answerCur(a, deliberatelyWrong) {
   if (!it) return;
   const box = d.getElementById('pd-options');
 
-  if (it.type === 'choice' || it.type === 'listen' || it.type === 'fill') {
+  if (it.type === 'choice' || it.type === 'listen' || it.type === 'fill' || it.type === 'classify') {
     /* 填空题按钮上显示的是「候选块填进 ▢ 之后的完整拼音」，所以比较用的期望文本也要按同样规则拼 */
     const labelOf = i => it.type === 'fill'
       ? String(it.display).replace('▢', it.opts[i])
@@ -183,7 +183,7 @@ async function main() {
   /* ================= 题库数据 ================= */
   console.log('\n【题库自检】');
   const qCount = w.eval('QUESTIONS.length');
-  ok('题库题量充足（≥380 题）', qCount >= 380, String(qCount));
+  ok('题库题量充足（≥560 题）', qCount >= 560, String(qCount));
   /* 不写死题量：只断言真正的不变式 —— 每个知识点都练够、且题型有变化 */
   const cov = JSON.parse(w.eval(`(function(){
     var by={};
@@ -200,9 +200,9 @@ async function main() {
     thin.map(c => c.id + '(' + c.n + ')').join(','));
   ok('每个知识点至少覆盖 4 种题型', mono.length === 0,
     mono.map(c => c.id + '(' + c.t + '种)').join(','));
-  ok('知识点 29 个', w.eval('KNOWLEDGE_POINTS.length') === 29);
-  ok('6 种题型都齐了',
-    ['choice', 'listen', 'judge', 'match', 'fill', 'spell'].every(t => w.eval('QUESTIONS.some(function(q){return q.type==="' + t + '"})')));
+  ok('知识点 34 个', w.eval('KNOWLEDGE_POINTS.length') === 34);
+  ok('7 种题型都齐了',
+    ['choice', 'listen', 'judge', 'match', 'fill', 'spell', 'classify'].every(t => w.eval('QUESTIONS.some(function(q){return q.type==="' + t + '"})')));
   ok('每个知识点都有讲解',
     w.eval('KNOWLEDGE_POINTS.every(function(k){return !!EXPLANATIONS[k.id]})'));
   ok('每条讲解的图都能生成',
@@ -213,6 +213,25 @@ async function main() {
   ok('判断题都带拼音与结论', w.eval('QUESTIONS.filter(function(q){return q.type==="judge"}).every(function(q){return q.judgePinyin && typeof q.judgeOk==="boolean"})'));
   ok('连线题都是 4 对且无重复', w.eval('QUESTIONS.filter(function(q){return q.type==="match"}).every(function(q){return q.pairs.length===4 && new Set(q.pairs.map(function(p){return p[1]})).size===4})'));
   ok('拼读积木都带干扰块', w.eval('QUESTIONS.filter(function(q){return q.type==="spell"}).every(function(q){return q.tiles.length>=2 && q.extraTiles.length>=1})'));
+  /* ---- v4：考纲重点知识点 + 归类题 ---- */
+  const v4kps = ['apostrophe', 'mark_rule', 'y_w_rule', 'zhengti_judge', 'comprehensive'];
+  ok('v4 的 5 个考纲重点知识点都在（隔音符号/标调位置/y-w 起头/整体认读判断/综合易错字音）',
+    v4kps.every(k => w.eval('KNOWLEDGE_POINTS.some(function(x){return x.id==="' + k + '"})')));
+  ok('归类题选项固定四选项，且 16 个整体认读全判「是」、4 个干扰字全判「不是」',
+    w.eval(`(function(){
+      var yes = {}, no = {};
+      QUESTIONS.filter(function(q){return q.type==='classify'}).forEach(function(q){
+        if (q.options.join('|') !== '整体认读|不是整体认读|是声母|是韵母') return false;
+        (q.answer === 0 ? yes : no)[q.content] = 1;
+      });
+      var wantYes = '知吃是日字丝词一五鱼叶月圆音云英'.split('');
+      var wantNo  = '严王又要'.split('');
+      return wantYes.every(function(c){return yes[c]}) &&
+             wantNo.every(function(c){return no[c]}) &&
+             Object.keys(no).length === wantNo.length;
+    })()`));
+  ok('隔音符号不派生判断题（读音相同，判断题判不出对错）',
+    !w.eval('QUESTIONS.some(function(q){return q.knowledge==="apostrophe" && q.type==="judge"})'));
 
   /* ================= 装扮 ================= */
   console.log('\n【装扮系统】');
@@ -251,12 +270,14 @@ async function main() {
   ok('选项顺序确实被打乱了（不是原序照搬）', sr.sameOrder < sr.rounds, JSON.stringify(sr));
 
   /* ================= 一轮定制练习：每种题型都点到 ================= */
-  console.log('\n【六种题型逐一作答】');
+  console.log('\n【七种题型逐一作答】');
   const oneOf = t => w.eval('(function(){var l=QUESTIONS.filter(function(q){return q.type==="' + t + '"});return JSON.stringify([l[0]]);})()');
-  const list = ['choice', 'listen', 'judge', 'fill', 'spell', 'match']
-    .map(t => JSON.parse(oneOf(t))[0]);
-  ok('能取到 6 种题型的样本', list.length === 6 && list.every(Boolean));
+  const allTypes = ['choice', 'listen', 'judge', 'fill', 'spell', 'match', 'classify'];
+  const list = allTypes.map(t => JSON.parse(oneOf(t))[0]);
+  ok('能取到 7 种题型的样本', list.length === 7 && list.every(Boolean));
+  ok('其中有音节归类题', list.some(q => q && q.type === 'classify'));
 
+  w.eval('__pyTest.S().dayCount = 0');   // 本组要连答 7 题，先清空今日计数
   w.__pyTest.start(list);
   await sleep(80);
   ok('定制一轮进入练习页', activePage() === 'page-practice', activePage());
@@ -272,7 +293,7 @@ async function main() {
 
   const seenTypes = [];
   let ptsBefore = a.state().points;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < allTypes.length; i++) {
     const it = a.cur();
     if (!it) break;
     seenTypes.push(it.type);
@@ -284,13 +305,13 @@ async function main() {
       await sleep(120);
     }
   }
-  ok('六种题型都实际答过一轮', ['choice', 'listen', 'judge', 'fill', 'spell', 'match']
-    .every(t => seenTypes.indexOf(t) >= 0), seenTypes.join(','));
+  ok('七种题型都实际答过一轮', allTypes.every(t => seenTypes.indexOf(t) >= 0), seenTypes.join(','));
   ok('答对后积分增加', a.state().points > ptsBefore, ptsBefore + ' -> ' + a.state().points);
-  ok('练习页进度条推进', a.state().totalCount >= 6, String(a.state().totalCount));
+  ok('练习页进度条推进', a.state().totalCount >= 7, String(a.state().totalCount));
 
-  /* ================= 填空题（补声母 / 补韵母）================= */
+  /* ================= 填空题（补声母 / 补韵母 / 补隔音符号）================= */
   console.log('\n【填空题】');
+  w.eval('__pyTest.S().dayCount = 0');
   const fillPick = w.eval(`(function(){
     var fs=QUESTIONS.filter(function(q){return q.type==='fill'});
     var head=fs.filter(function(q){return q.display.indexOf('▢')===0})[0];
@@ -300,6 +321,8 @@ async function main() {
   const [fillHead, fillMid] = JSON.parse(fillPick);
   ok('既有补声母的填空，也有补韵母的填空', !!fillHead && !!fillMid,
     (fillHead ? fillHead.display : '无') + ' / ' + (fillMid ? fillMid.display : '无'));
+  ok('隔音符号也有填空题',
+    w.eval('QUESTIONS.some(function(q){return q.type==="fill" && q.knowledge==="apostrophe"})'));
 
   w.__pyTest.start([fillHead, fillMid]);
   await sleep(80);

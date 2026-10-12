@@ -16,6 +16,9 @@
      · 判断题：说「读对了」就必须真等于标准读音，说「读错了」就必须真的不等于
      · 连线题：每个字连到的拼音必须是它的真实读音
      · 拼读积木：字母块拼起来必须等于标准读音，干扰块不能也拼得出来
+  6) classify 归类题：说「整体认读」的字，它的音节必须在 16 个整体认读音节里；
+     说「不是整体认读」的，必须不在里面
+  说明：比较时忽略空格与隔音符号的排版差异（「西安 xī'ān」与 pypinyin 的 xī ān 同音）
 """
 import json, os, subprocess, sys
 
@@ -53,7 +56,14 @@ TM = {'ā': 'a', 'á': 'a', 'ǎ': 'a', 'à': 'a', 'ē': 'e', 'é': 'e', 'ě': 'e
 
 
 def strip_tone(s):
-    return ''.join(TM.get(c, c) for c in s).replace(' ', '').lower()
+    """去调号 + 去空格 + 去隔音符号，用来比较「声母韵母骨架」"""
+    return ''.join(TM.get(c, c) for c in s).replace(' ', '').replace("'", '').lower()
+
+
+def norm(s):
+    """原样比较时用的归一化：忽略空格与隔音符号的排版差异。
+    （「西安 xī'ān」和 pypinyin 给出的 xī ān 是同一个读音，只是写法不同）"""
+    return s.replace(' ', '').replace("'", '')
 
 
 def real_pinyin(text):
@@ -122,15 +132,22 @@ def fill_reconstruct(display, chosen):
 # yi/wu/yu 这一组本身就是「i u ü 加 y/w 变身」，选项之间天然不同声母也不同韵母
 # f/h 这一组有个语言事实：f 不能跟 ui 拼（没有 fui），所以「飞 fēi / 灰 huī」
 #   这类经典最小对立，韵母也一定不同 —— 属正常，不是题库质量问题
-SIMILAR_EXEMPT = {'yi_wu_yu', 'f_h'}
+# y_w_rule 同理：干扰项就是「少写 y/w」的裸露形式（ī / iā / ǘn），
+#   骨架本来就该不一样，否则就失去考点意义了
+SIMILAR_EXEMPT = {'yi_wu_yu', 'f_h', 'y_w_rule'}
+
+# 16 个整体认读音节（classify 题的判定依据）
+ZHENGTI16 = {'zhi', 'chi', 'shi', 'ri', 'zi', 'ci', 'si', 'yi', 'wu', 'yu',
+             'ye', 'yue', 'yuan', 'yin', 'yun', 'ying'}
 
 errors, tonegap, dup, far = [], [], [], []
 spelltrap = []          # 填空题里「填出来不是合法音节」的干扰块（故意的拼写陷阱）
 seen_kp = {}
 
 n_checked = 0
+n_classify = 0
 for q in QS:
-    if q.get('type') not in ('choice', 'listen', 'fill'):
+    if q.get('type') not in ('choice', 'listen', 'fill', 'classify'):
         continue          # judge/match/spell 没有独立「正确选项」，其内容派生自已核验的选择题
     n_checked += 1
     content, opts, ans, kid = q['content'], q['options'], q['answer'], q['knowledge']
@@ -146,16 +163,25 @@ for q in QS:
         errors.append(f'{tag}: answer 下标越界')
         continue
 
+    # ---- 0) classify 归类题：真相不是「读音」而是「这个音节属不属于整体认读」 ----
+    if q.get('type') == 'classify':
+        n_classify += 1
+        syl = strip_tone(std)
+        want = '整体认读' if syl in ZHENGTI16 else '不是整体认读'
+        if chosen != want:
+            errors.append(f'{tag}: 答案选了「{chosen}」，但 {syl} {"是" if syl in ZHENGTI16 else "不是"}整体认读音节')
+        continue
+
     # ---- 1) 正确选项核验 ----
     if kid in SANDHI_KP:
         if strip_tone(chosen) != strip_tone(std):
             errors.append(f'{tag}: 正确项 {chosen} 的声母韵母与标准 {std} 不符')
-        elif chosen != std:
+        elif norm(chosen) != norm(std):
             tonegap.append(f'{tag}: {chosen}（本调 {std}，变调/轻声，符合设计）')
     elif q.get('type') == 'fill':
         # 填空题：把补语填回空位，必须还原成标准读音
         got = fill_reconstruct(q.get('display', ''), chosen)
-        if got != std:
+        if norm(got) != norm(std):
             errors.append(f'{tag}: 填空补出来是 {got}，标准读音是 {std}')
         # 干扰块填回去若是「不存在的音节」，那是故意的拼写陷阱（如 qǜ），
         # 不算错误，但要列出来让人确认确实是设计意图
@@ -166,7 +192,7 @@ for q in QS:
             if strip_tone(cand) not in SYLLABLES:
                 spelltrap.append(f'{tag}: 干扰块 {o} → {cand}（拼音里没有这个音节，属拼写陷阱）')
     else:
-        if chosen != std:
+        if norm(chosen) != norm(std):
             errors.append(f'{tag}: 正确项 {chosen} != 标准读音 {std}')
         else:
             # ---- 2) 干扰项是否真的「像」 ----
@@ -208,13 +234,13 @@ for q in QS:
                 errors.append(f'{tag}: 判断题找不到同源选择题（audioId={q.get("audioId")}）')
             else:
                 truth = src['options'][src['answer']]
-                if ok_flag and given != truth:
+                if ok_flag and norm(given) != norm(truth):
                     errors.append(f'{tag}: 说「读对了」，但标称 {given} 与正确读音 {truth} 不符')
-                if (not ok_flag) and given == truth:
+                if (not ok_flag) and norm(given) == norm(truth):
                     errors.append(f'{tag}: 说「读错了」，但标称 {given} 其实就是正确读音 {truth}')
-        elif ok_flag and given != std:
+        elif ok_flag and norm(given) != norm(std):
             errors.append(f'{tag}: 判断题说「读对了」，但标称 {given} 与标准 {std} 不符')
-        elif (not ok_flag) and given == std:
+        elif (not ok_flag) and norm(given) == norm(std):
             errors.append(f'{tag}: 判断题说「读错了」，但标称 {given} 其实就等于标准读音 {std}')
 
     elif t == 'match':
@@ -224,20 +250,20 @@ for q in QS:
             if q['knowledge'] in SANDHI_KP:
                 if strip_tone(py) != strip_tone(std):
                     errors.append(f"{q['id']}: 连线题把「{ch}」连到了 {py}，声母韵母与 {std} 不符")
-            elif py != std:
+            elif norm(py) != norm(std):
                 errors.append(f"{q['id']}: 连线题把「{ch}」连到了 {py}，标准读音是 {std}")
 
     elif t == 'spell':
         n_spell += 1
         std = real_pinyin(q['content'])
         tag = f"{q['id']} {q['content']}"
-        if ''.join(q.get('tiles', [])) != std:
+        if norm(''.join(q.get('tiles', []))) != norm(std):
             errors.append(f"{tag}: 积木块拼出来是 {''.join(q.get('tiles', []))}，标准读音是 {std}")
         # 干扰块不能被拼成正确答案（否则会出现两个正确答案）
-        if ''.join(q.get('extraTiles', [])) == std:
+        if norm(''.join(q.get('extraTiles', []))) == norm(std):
             errors.append(f"{tag}: 干扰块也能拼出正确读音 {std}")
         # 每一块都必须真实出现在标准读音里，避免出现「拼不出来的块」
-        if ''.join(q.get('tiles', [])) == std:
+        if norm(''.join(q.get('tiles', []))) == norm(std):
             for blk in q.get('tiles', []):
                 if blk not in std:
                     errors.append(f"{tag}: 字母块「{blk}」不在标准读音 {std} 里")
@@ -247,7 +273,8 @@ for q in QS:
 LINE = '=' * 58
 print(LINE)
 print(f'题库总量：{len(QS)} 题   知识点：{len(KPS)} 个')
-print(f'  有标准答案核验（选择/听音/填空）：{n_checked} 题')
+print(f'  有标准答案核验（选择/听音/填空）：{n_checked - n_classify} 题')
+print(f'  整体认读归类核验（classify）：{n_classify} 题')
 print(f'  真值核验（判断/连线/拼读积木）：{n_judge} / {n_match} / {n_spell} 题')
 print(LINE)
 

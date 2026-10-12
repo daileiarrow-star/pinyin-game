@@ -348,12 +348,18 @@
       w.className = 'q-word q-word-audio';
       w.textContent = '🔊';
       w.onclick = function () { playQuestion(it); };
-      hint.textContent = '点上面的喇叭再听一遍，听清是哪个音';
+      hint.textContent = '点上面的喇叭再听一遍，选出正确的拼音';
     } else if (it.type === 'fill') {
       w.onclick = null;
       w.className = 'q-word';
       w.textContent = it.content;
       hint.textContent = '补完整：' + String(it.display).replace('▢', '（　）');
+    } else if (it.type === 'classify') {
+      /* v4：音节归类题 —— 给一个字，判断它的音节是不是整体认读 */
+      w.onclick = function () { playQuestion(it); };
+      w.className = 'q-word';
+      w.textContent = it.content;
+      hint.textContent = '点一下字可以听读音，再判断它的音节';
     } else {
       w.onclick = null;
       w.className = 'q-word' + (it.content.length > 1 ? ' long' : '');

@@ -323,7 +323,9 @@ function illusMark(spec) {
 function illusBuild(spec) {
   var C = ILLUS_COLOR, s = '', i;
   var parts = spec.wrong || [];
-  var n = parts.length, bw = 48, bh = 52, gap = 12, plus = 18;
+  var n = parts.length;
+  /* 4 块以上时收紧尺寸，避免「✗」压到最后一格上 */
+  var bw = n >= 4 ? 42 : 48, bh = 52, gap = n >= 4 ? 10 : 12, plus = n >= 4 ? 14 : 18;
   var total = n * bw + (n - 1) * (gap + plus);
   var x0 = (320 - total) / 2, y0 = 36;
   var cur = x0;

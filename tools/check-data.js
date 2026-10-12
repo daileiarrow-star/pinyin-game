@@ -50,7 +50,7 @@ console.log('题型分布:', JSON.stringify(types));
 const uneven = KNOWLEDGE_POINTS.filter(k => byK[k.id] < 8);
 if (uneven.length) warn.push('题数少于8的知识点: ' + uneven.map(k => k.id + '(' + (byK[k.id] || 0) + ')').join(', '));
 
-const TYPE_NEEDS_OPTS = { choice: 1, listen: 1, fill: 1 };
+const TYPE_NEEDS_OPTS = { choice: 1, listen: 1, fill: 1, classify: 1 };
 const ids = new Set();
 QUESTIONS.forEach((q, n) => {
   const tag = `#${n} ${q.id} ${q.content}`;
@@ -84,7 +84,14 @@ QUESTIONS.forEach((q, n) => {
     if (!Array.isArray(q.extraTiles) || !q.extraTiles.length) errs.push(tag + ' spell 缺 extraTiles');
   }
   if (q.content.length > 4) errs.push(tag + ' 题面过长');
-  if (q.type !== 'match' && q.type !== 'choice' && !q.audioId) warn.push(tag + ' 未指定 audioId（会生成独立语音文件）');
+  // choice 自带语音；match 不用听；classify 的题面是汉字，会生成独立语音
+  if (['choice', 'match', 'classify'].indexOf(q.type) < 0 && !q.audioId) {
+    warn.push(tag + ' 未指定 audioId（会生成独立语音文件）');
+  }
+  if (q.type === 'classify') {
+    const labels = q.options.join('|');
+    if (labels !== '整体认读|不是整体认读|是声母|是韵母') errs.push(tag + ' classify 选项不是标准四选项: ' + labels);
+  }
 });
 
 const seen = {};

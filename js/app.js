@@ -465,6 +465,12 @@
     var wrap = document.createElement('div');
     wrap.className = 'match-wrap';
 
+    /* 连线层：绝对定位盖在两列上，只画已连对的线，不挡点击 */
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'match-svg');
+    svg.style.pointerEvents = 'none';   /* 内联再兜一道，CSS 丢失也不会挡住格子点击 */
+    wrap.appendChild(svg);
+
     var left = document.createElement('div');
     left.className = 'match-col';
     var right = document.createElement('div');
@@ -490,7 +496,44 @@
     wrap.appendChild(right);
     box.appendChild(wrap);
 
-    SS.match = { picked: null, done: 0, mistakes: 0, left: left.children, right: right.children, it: it };
+    SS.match = { picked: null, done: 0, mistakes: 0, left: left.children, right: right.children, it: it, svg: svg, wrap: wrap, lines: [] };
+  }
+
+  /* 已连对的线：SVG 贝塞尔曲线，从左格右边中点连到右格左边中点。
+     resize 时整层重画，保证线始终钉在格子上。 */
+  var MATCH_COLORS = ['#7C6CE0', '#3EBD93', '#F2994A', '#EB5757', '#2D9CDB', '#BB6BD9'];
+  function drawMatchLines(M) {
+    if (!M || !M.svg || !M.lines.length) return;
+    var wr = M.wrap.getBoundingClientRect();
+    var laid = wr.width >= 10;   /* 拿得到布局（真浏览器）；拿不到（测试环境）也要建出节点 */
+    if (laid) M.svg.setAttribute('viewBox', '0 0 ' + wr.width + ' ' + wr.height);
+    while (M.svg.firstChild) M.svg.removeChild(M.svg.firstChild);
+    M.lines.forEach(function (ln, k) {
+      if (!ln.re) return;
+      var x1, y1, x2, y2;
+      if (laid) {
+        var a = ln.le.getBoundingClientRect();
+        var b = ln.re.getBoundingClientRect();
+        x1 = a.right - wr.left; y1 = a.top + a.height / 2 - wr.top;
+        x2 = b.left - wr.left;  y2 = b.top + b.height / 2 - wr.top;
+      } else {
+        x1 = 0; y1 = 14 + k * 26; x2 = 100; y2 = 14 + k * 26;
+      }
+      var mx = (x1 + x2) / 2;
+      var c = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      c.setAttribute('d', 'M' + x1 + ' ' + y1 + ' C' + mx + ' ' + y1 + ' ' + mx + ' ' + y2 + ' ' + x2 + ' ' + y2);
+      c.setAttribute('class', 'match-line');
+      c.setAttribute('stroke', MATCH_COLORS[k % MATCH_COLORS.length]);
+      M.svg.appendChild(c);
+      /* 画线动画：沿路径从左往右划出来 */
+      var len = 0;
+      try { len = c.getTotalLength(); } catch (e) { len = Math.abs(x2 - x1) || 100; }
+      c.style.strokeDasharray = len;
+      c.style.strokeDashoffset = len;
+      void c.getBoundingClientRect();   /* 强制 reflow，让起始状态生效 */
+      c.style.transition = 'stroke-dashoffset .4s ease';
+      c.style.strokeDashoffset = '0';
+    });
   }
 
   var matchSel = null;   // {side, idx, el}
@@ -524,6 +567,7 @@
             M.right[k].textContent === M.it.pairs[li].p) { re = M.right[k]; break; }
       }
       le.classList.add('done'); if (re) re.classList.add('done');
+      if (re) { M.lines.push({ le: le, re: re }); drawMatchLines(M); }
       beep('good');
       if (M.done >= M.it.pairs.length) {
         onMatchDone();
@@ -1283,6 +1327,11 @@
     $('modal-reward').addEventListener('click', function (e) { if (e.target === this) closeReward(); });
     ['modal-pay', 'modal-confirm'].forEach(function (id) {
       $(id).addEventListener('click', function (e) { if (e.target === this) hideModal(id); });
+    });
+
+    /* 连线题的线钉在格子上：窗口尺寸一变（转屏/缩放）就整层重画 */
+    window.addEventListener('resize', function () {
+      if (SS && SS.match) drawMatchLines(SS.match);
     });
   }
 

@@ -17,6 +17,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* 跨页面共享的 localStorage：jsdom 每个实例的存储是独立的 */
 let __store = {};
+let matchLineChecked = false;   /* 连线题画线断言只查第一次，避免多轮练习重复计数 */
 function storageShim() {
   const s = __store;
   return {
@@ -133,6 +134,14 @@ async function answerCur(a, deliberatelyWrong) {
       click(r);
       await sleep(30);
       if (deliberatelyWrong) { /* 故意错一次即可，其余连对 */ }
+    }
+    /* 连对之后必须真的画出连线（每对一条，且不挡后续点击） */
+    if (!deliberatelyWrong && !matchLineChecked) {
+      matchLineChecked = true;
+      const svgEl = box.querySelector('.match-svg');
+      const lines = box.querySelectorAll('.match-svg .match-line').length;
+      ok('连对的每一对都画出了连线', !!svgEl && lines === it.pairs.length, lines + ' 条 / 应 ' + it.pairs.length + ' 条');
+      ok('连线层不挡点击（pointer-events:none）', !!svgEl && svgEl.style.pointerEvents === 'none');
     }
     return;
   }

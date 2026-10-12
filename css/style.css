@@ -374,30 +374,97 @@ body.with-tab .toast{bottom:calc(96px + env(safe-area-inset-bottom))}
 .rw-item .rw-name{display:block;font-size:20px;font-weight:800;color:var(--brand);margin-top:4px}
 .rw-desc{font-size:15px;color:var(--ink2);line-height:1.7;margin-bottom:6px}
 
-/* ---------- 彩蛋开箱 ---------- */
-.modal-egg-box{max-width:320px}
-.egg-stage{padding:10px 0 4px}
-.egg{
-  font-size:104px;line-height:1;background:none;border:none;cursor:pointer;
-  filter:drop-shadow(0 10px 16px rgba(108,92,231,.28));
-  animation:eggIdle 1.6s ease-in-out infinite;
+/* ---------- 彩蛋开箱：金色大蛋 + 爆开喷彩带亮片 ---------- */
+/* overflow:visible —— 炸开的粒子要能飞出弹窗圆角，不被裁掉 */
+.modal-egg-box{max-width:320px;overflow:visible}
+.egg-stage{position:relative;display:flex;flex-direction:column;align-items:center;padding:6px 0 4px}
+/* 以下绝对定位元素都以「蛋心」为基准：蛋在舞台里 y = 6px 起、高 224px → 蛋心 118px */
+
+/* 蛋后面的金色辉光（呼吸） */
+.egg-glow{
+  position:absolute;left:50%;top:118px;width:250px;height:250px;margin:-125px 0 0 -125px;
+  border-radius:50%;pointer-events:none;z-index:0;
+  background:radial-gradient(circle,rgba(255,201,60,.62) 0%,rgba(255,201,60,.26) 40%,rgba(255,201,60,0) 70%);
+  animation:glowPulse 1.8s ease-in-out infinite;
 }
-@keyframes eggIdle{0%,100%{transform:rotate(-4deg) scale(1)}50%{transform:rotate(4deg) scale(1.04)}}
-/* 先摇 .45s×2=0.9s，再爆开 .55s（延迟 .9s 起，1.45s 结束）
-   ★ js 里关弹窗的 setTimeout 必须大于 1.45s，否则爆开特效会被截断看不到 */
-.egg.opening{animation:eggShake .45s ease-in-out 2, eggBoom .55s ease-in .9s forwards}
+@keyframes glowPulse{0%,100%{transform:scale(.9);opacity:.75}50%{transform:scale(1.08);opacity:1}}
+/* 金色光芒：12 条光刺缓慢旋转（用 repeating-conic 一行搞定） */
+.egg-rays{
+  position:absolute;left:50%;top:118px;width:300px;height:300px;margin:-150px 0 0 -150px;
+  pointer-events:none;z-index:0;opacity:.85;
+  background:repeating-conic-gradient(from 0deg,rgba(255,214,102,.8) 0 3deg,rgba(255,214,102,0) 3deg 30deg);
+  -webkit-mask-image:radial-gradient(circle,#000 16%,rgba(0,0,0,.5) 42%,transparent 70%);
+  mask-image:radial-gradient(circle,#000 16%,rgba(0,0,0,.5) 42%,transparent 70%);
+  animation:raySpin 9s linear infinite;
+}
+@keyframes raySpin{to{transform:rotate(360deg)}}
+
+/* 金蛋本体 */
+.egg{
+  position:relative;z-index:1;padding:0;width:168px;height:224px;
+  background:none;border:none;cursor:pointer;
+  filter:drop-shadow(0 12px 20px rgba(200,134,13,.35));
+  animation:eggIdle 2.2s ease-in-out infinite;
+}
+.egg-svg{display:block;width:100%;height:100%;overflow:visible}
+@keyframes eggIdle{0%,100%{transform:rotate(-3deg) scale(1)}50%{transform:rotate(3deg) scale(1.05)}}
+/* 先摇 .45s×2=0.9s，再爆开 .75s（延迟 .9s 起，1.65s 结束）
+   ★ js 里关弹窗的 setTimeout 必须大于 1.65s，否则爆开特效会被截断看不到 */
+.egg.opening{animation:eggShake .45s ease-in-out 2, eggBoom .75s ease-in .9s forwards}
 @keyframes eggShake{
-  0%,100%{transform:rotate(-9deg) scale(1.02)}
-  25%{transform:rotate(10deg) scale(1.05)}
-  50%{transform:rotate(-12deg) scale(1.02)}
-  75%{transform:rotate(12deg) scale(1.06)}
+  0%,100%{transform:rotate(-8deg) scale(1.02)}
+  25%{transform:rotate(9deg) scale(1.06)}
+  50%{transform:rotate(-11deg) scale(1.03)}
+  75%{transform:rotate(11deg) scale(1.07)}
 }
 @keyframes eggBoom{
-  0%{transform:scale(1);opacity:1;filter:drop-shadow(0 0 0 rgba(255,209,102,0))}
-  55%{transform:scale(1.35) rotate(6deg);opacity:1;filter:drop-shadow(0 0 26px rgba(255,209,102,.95))}
-  100%{transform:scale(2.1) rotate(-4deg);opacity:0;filter:drop-shadow(0 0 34px rgba(255,209,102,1))}
+  0%{transform:scale(1) rotate(0deg);opacity:1;filter:drop-shadow(0 0 0 rgba(255,201,60,0))}
+  35%{transform:scale(1.24) rotate(-5deg);opacity:1;filter:drop-shadow(0 0 26px rgba(255,201,60,.95))}
+  70%{transform:scale(1.62) rotate(6deg);opacity:.92;filter:drop-shadow(0 0 44px rgba(255,201,60,1))}
+  100%{transform:scale(2.4) rotate(-3deg);opacity:0;filter:drop-shadow(0 0 64px rgba(255,220,120,1))}
 }
-.egg-hint{font-size:14px;color:var(--ink2);font-weight:700;margin-top:10px;animation:bounceY 1.3s ease-in-out infinite}
+
+/* 喷发粒子层：彩带（长条）+ 亮片（方块/圆点），由 js 在炸开瞬间生成 */
+.egg-fx{position:absolute;inset:0;pointer-events:none;z-index:2}
+.fx-p{
+  position:absolute;left:50%;top:118px;opacity:0;will-change:transform,opacity;
+  animation:fxBurst var(--dur,1.2s) cubic-bezier(.16,.72,.32,1) var(--delay,0s) forwards;
+}
+/* 位移方向由 js 注入 --dx/--dy/--rot（从蛋心向外辐射，再受重力落下） */
+@keyframes fxBurst{
+  0%{opacity:0;transform:translate(-50%,-50%) translate(0,0) rotate(0deg) scale(.4)}
+  10%{opacity:1}
+  60%{opacity:1;transform:translate(-50%,-50%) translate(calc(var(--dx) * .84),calc(var(--dy) * .88)) rotate(calc(var(--rot) * .68)) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-50%) translate(var(--dx),calc(var(--dy) + 130px)) rotate(var(--rot)) scale(.88)}
+}
+.fx-ribbon{border-radius:2px}
+.fx-sequin{
+  border-radius:2px;
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.75),0 0 9px rgba(255,255,255,.55);
+  animation:fxBurst var(--dur,1.2s) cubic-bezier(.16,.72,.32,1) var(--delay,0s) forwards,
+            fxTwinkle .22s steps(2,end) var(--delay,0s) 6;
+}
+@keyframes fxTwinkle{0%{filter:brightness(1)}100%{filter:brightness(1.9)}}
+/* 爆开瞬间的金色冲击波 + 白光闪 */
+.fx-ring{
+  position:absolute;left:50%;top:118px;width:30px;height:30px;margin:-15px 0 0 -15px;
+  border-radius:50%;border:5px solid rgba(255,205,70,.9);opacity:0;
+  box-shadow:0 0 34px rgba(255,201,60,.95),inset 0 0 24px rgba(255,225,140,.8);
+  animation:fxRing .85s ease-out forwards;
+}
+@keyframes fxRing{0%{opacity:1;transform:scale(.25)}65%{opacity:.65}100%{opacity:0;transform:scale(9)}}
+.fx-flash{
+  position:absolute;left:50%;top:118px;width:340px;height:340px;margin:-170px 0 0 -170px;
+  border-radius:50%;opacity:0;pointer-events:none;
+  background:radial-gradient(circle,rgba(255,255,255,.98) 0%,rgba(255,222,120,.7) 38%,rgba(255,201,60,0) 68%);
+  animation:fxFlash .55s ease-out forwards;
+}
+@keyframes fxFlash{0%{opacity:0;transform:scale(.4)}22%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.5)}}
+
+.egg-hint{
+  position:relative;z-index:3;font-size:14px;color:var(--ink2);font-weight:700;margin-top:6px;
+  animation:bounceY 1.3s ease-in-out infinite;
+}
 
 /* 彩带粒子 */
 .modal-box{position:relative}
@@ -520,6 +587,12 @@ body.with-tab .toast{bottom:calc(96px + env(safe-area-inset-bottom))}
   .choose-hero .choose-emoji{font-size:42px}
   .choose-card .avatar-svg{width:100%;max-width:104px;height:auto}
   .modal-box{padding:20px 18px;max-height:92vh;max-height:92dvh}
+  /* 矮屏：金蛋等比缩小 → 蛋心从 118px 上移到 90px，所有以蛋心为基准的特效一起挪 */
+  .egg{width:126px;height:168px}
+  .egg-glow{top:90px;width:190px;height:190px;margin:-95px 0 0 -95px}
+  .egg-rays{top:90px;width:230px;height:230px;margin:-115px 0 0 -115px}
+  .fx-p,.fx-ring{top:90px}
+  .fx-flash{top:90px;width:260px;height:260px;margin:-130px 0 0 -130px}
 }
 
 /* ---------- 窄屏手机（320px 宽，如 iPhone 5/SE1）：防止元素溢出 ---------- */

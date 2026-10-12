@@ -125,13 +125,57 @@
   </div>
 </div>
 
-<!-- ============ 弹窗：彩蛋（先出现蛋，点开有特效）============ -->
+<!-- ============ 弹窗：彩蛋（金色大蛋，点开喷彩带亮片）============ -->
 <div class="modal" id="modal-egg">
   <div class="modal-box modal-egg-box">
     <div class="modal-emoji">✨</div>
-    <h3>有个彩蛋！</h3>
+    <h3>金色大彩蛋！</h3>
     <div class="egg-stage">
-      <button class="egg" id="btn-egg" aria-label="打开彩蛋">🥚</button>
+      <div class="egg-glow"></div>
+      <div class="egg-rays"></div>
+      <button class="egg" id="btn-egg" aria-label="打开金蛋">
+        <!-- 手绘金蛋：金色渐变蛋身 + 高光 + 金纹 + 闪光（不依赖 emoji 字体，任何手机显示一致） -->
+        <svg class="egg-svg" viewBox="0 0 120 160" aria-hidden="true">
+          <defs>
+            <linearGradient id="egGold" x1="0.15" y1="0" x2="0.85" y2="1">
+              <stop offset="0" stop-color="#FFF8D8"/>
+              <stop offset="0.22" stop-color="#FFE592"/>
+              <stop offset="0.5" stop-color="#FFC93C"/>
+              <stop offset="0.76" stop-color="#E8A317"/>
+              <stop offset="1" stop-color="#B8770B"/>
+            </linearGradient>
+            <radialGradient id="egHi" cx="0.33" cy="0.26" r="0.54">
+              <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.9"/>
+              <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.22"/>
+              <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <ellipse cx="60" cy="150" rx="33" ry="6.5" fill="#C8860D" opacity="0.2"/>
+          <g>
+            <path d="M60 8C89 8 107 51 107 92c0 37-21 60-47 60S13 129 13 92C13 51 31 8 60 8Z" fill="url(#egGold)"/>
+            <path d="M60 8C89 8 107 51 107 92c0 37-21 60-47 60S13 129 13 92C13 51 31 8 60 8Z" fill="none"
+                  stroke="#B8770B" stroke-opacity="0.45" stroke-width="2"/>
+            <path d="M60 8C89 8 107 51 107 92c0 37-21 60-47 60S13 129 13 92C13 51 31 8 60 8Z" fill="url(#egHi)"/>
+          </g>
+          <path d="M30 60Q60 74 90 58" fill="none" stroke="#D99A12" stroke-opacity="0.45"
+                stroke-width="2.6" stroke-linecap="round"/>
+          <path d="M24 98Q60 114 96 94" fill="none" stroke="#D99A12" stroke-opacity="0.35"
+                stroke-width="3" stroke-linecap="round"/>
+          <ellipse cx="43" cy="45" rx="8" ry="13" fill="#FFFDF2" opacity="0.6"
+                   transform="rotate(-24 43 45)"/>
+          <g fill="#FFFCE8" opacity="0.95">
+            <path d="M0 -10C1.3 -3.4 3.4 -1.3 10 0 3.4 1.3 1.3 3.4 0 10-1.3 3.4-3.4 1.3-10 0-3.4-1.3-1.3-3.4 0-10Z"
+                  transform="translate(80 52) scale(0.95)"/>
+            <path d="M0 -10C1.3 -3.4 3.4 -1.3 10 0 3.4 1.3 1.3 3.4 0 10-1.3 3.4-3.4 1.3-10 0-3.4-1.3-1.3-3.4 0-10Z"
+                  transform="translate(38 100) scale(0.72)"/>
+            <path d="M0 -10C1.3 -3.4 3.4 -1.3 10 0 3.4 1.3 1.3 3.4 0 10-1.3 3.4-3.4 1.3-10 0-3.4-1.3-1.3-3.4 0-10Z"
+                  transform="translate(86 116) scale(0.55)"/>
+            <path d="M0 -10C1.3 -3.4 3.4 -1.3 10 0 3.4 1.3 1.3 3.4 0 10-1.3 3.4-3.4 1.3-10 0-3.4-1.3-1.3-3.4 0-10Z"
+                  transform="translate(58 26) scale(0.5)"/>
+          </g>
+        </svg>
+      </button>
+      <div class="egg-fx" id="egg-fx"></div>
       <div class="egg-hint" id="egg-hint">点一下打开它！</div>
     </div>
   </div>

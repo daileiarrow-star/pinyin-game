@@ -955,6 +955,8 @@
     el.classList.add('opening');
     $('egg-hint').textContent = '……';
     beep('egg');
+    /* 880ms ≈ 摇晃结束、正要炸开的那一刻：喷彩带 + 亮片 + 冲击波 */
+    setTimeout(burstFx, 880);
 
     setTimeout(function () {
       var e = eggPending;
@@ -977,13 +979,48 @@
       }
       showModal('modal-reward');
       confetti($('modal-reward'));
-    }, 1550);   // 必须盖过 CSS：摇晃 .45s×2 + 爆开延迟 .9s + 时长 .55s = 1.45s，留 0.1s 缓冲
+    }, 2100);   // 必须盖过 CSS：摇晃 .45s×2 + 爆开延迟 .9s + 时长 .75s = 1.65s，
+                // 再留一点余韵给 880ms 喷出的彩带/亮片飞散，否则炸开会被截断看不到
   }
 
   /* 关掉奖品弹窗。如果这颗彩蛋是练习中途掉的，关掉后要接着出下一题（否则会卡住） */
   function closeReward() {
     hideModal('modal-reward');
     if (SS && SS.eggResume) { SS.eggResume = false; advance(); }
+  }
+
+  /* 炸开瞬间：从蛋心向四周喷出彩带 + 彩色亮片（不是从顶部落下，是炸开）
+     位移方向靠 CSS 变量 --dx/--dy/--rot 注入，动画在 css 的 fxBurst 里 */
+  function burstFx() {
+    var host = $('egg-fx');
+    if (!host) return;
+    host.innerHTML = '';
+    var COLORS = ['#FF6B81', '#FFC93C', '#00C2A8', '#38B6FF', '#A29BFE', '#FF9F43', '#FF4D9D', '#7EDDC0'];
+
+    var flash = document.createElement('span'); flash.className = 'fx-flash'; host.appendChild(flash);
+    var ring = document.createElement('span'); ring.className = 'fx-ring'; host.appendChild(ring);
+
+    var N = 48;
+    for (var i = 0; i < N; i++) {
+      var p = document.createElement('span');
+      var sequin = i % 3 === 0;                       // 1/3 亮片、2/3 彩带，交错更热闹
+      p.className = 'fx-p ' + (sequin ? 'fx-sequin' : 'fx-ribbon');
+      var ang = (Math.PI * 2 * i) / N + (Math.random() - .5) * .45;  // 均匀铺满一圈，略微打散
+      var dist = 78 + Math.random() * 92;
+      p.style.setProperty('--dx', (Math.cos(ang) * dist).toFixed(1) + 'px');
+      p.style.setProperty('--dy', (Math.sin(ang) * dist * .82 - 34).toFixed(1) + 'px');  // 整体略向上，像喷涌
+      p.style.setProperty('--rot', Math.round(Math.random() * 900 - 450) + 'deg');
+      p.style.setProperty('--dur', (0.95 + Math.random() * 0.4).toFixed(2) + 's');
+      p.style.setProperty('--delay', (Math.random() * 0.1).toFixed(2) + 's');
+      p.style.background = COLORS[i % COLORS.length];
+      var w, h;
+      if (sequin) { w = h = 7 + Math.random() * 6; if (i % 6 === 0) p.style.borderRadius = '50%'; }
+      else { w = 7 + Math.random() * 4; h = 16 + Math.random() * 12; }
+      p.style.width = w.toFixed(1) + 'px';
+      p.style.height = h.toFixed(1) + 'px';
+      host.appendChild(p);
+    }
+    setTimeout(function () { if (host) host.innerHTML = ''; }, 2600);
   }
 
   /* 彩带粒子 */

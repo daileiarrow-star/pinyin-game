@@ -394,10 +394,24 @@ async function main() {
   ok('一轮结束进入结算页', activePage() === 'page-result', activePage());
   ok('触发彩蛋：先出现蛋而不是直接给奖品', d.getElementById('modal-egg').classList.contains('show'));
   ok('蛋在等待点击（还没有奖品内容）', d.getElementById('rw-item').textContent.trim() === '');
+  /* 金蛋是手绘 SVG（金色渐变蛋身 + 高光 + 闪光），不是 emoji 鸡蛋 */
+  ok('彩蛋是内联 SVG 大金蛋（不依赖 emoji 字体）',
+    !!d.querySelector('#btn-egg .egg-svg') && !!d.querySelector('#btn-egg .egg-svg path'));
+  ok('金蛋有金色渐变与辉光层',
+    !!d.getElementById('modal-egg').querySelector('#egGold') &&
+    !!d.getElementById('modal-egg').querySelector('.egg-glow'));
   click($('btn-egg'));
   await sleep(200);
   ok('点击后蛋进入开启动画', /opening/.test(d.getElementById('btn-egg').className));
-  /* 开箱动画总长 1.45s，1.55s 后才切奖品弹窗 —— 必须等够，否则会误报 */
+  /* 880ms 时炸开喷发，等粒子真的出现再清点（否则会抢跑成 0） */
+  let fxN = 0;
+  for (let i = 0; i < 12 && !fxN; i++) { await sleep(150); fxN = d.querySelectorAll('#egg-fx .fx-p').length; }
+  ok('炸开时喷出彩带与亮片（≥30 片）', fxN >= 30, String(fxN));
+  ok('彩带和亮片两种形态都有',
+    d.querySelectorAll('#egg-fx .fx-ribbon').length > 0 &&
+    d.querySelectorAll('#egg-fx .fx-sequin').length > 0);
+  ok('炸开有金色冲击波环', !!d.querySelector('#egg-fx .fx-ring'));
+  /* 开箱动画总长 1.65s，2.1s 后才切奖品弹窗 —— 必须等够，否则会误报 */
   let okRw = false;
   for (let i = 0; i < 20 && !okRw; i++) { await sleep(150); okRw = d.getElementById('modal-reward').classList.contains('show'); }
   ok('动画结束后弹出奖品', okRw);

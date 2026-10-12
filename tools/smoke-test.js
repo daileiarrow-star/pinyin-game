@@ -396,11 +396,29 @@ async function main() {
   click($('btn-rw-ok'));
   await sleep(80);
 
+  /* ================= 底部导航栏 ================= */
+  console.log('\n【底部导航栏】');
+  ok('底部导航栏存在且有 3 个 tab', d.querySelectorAll('#tabbar .tab').length === 3,
+    String(d.querySelectorAll('#tabbar .tab').length));
+  ok('结算页不显示导航栏', !d.getElementById('tabbar').classList.contains('show'));
+  click($('btn-result-home'));
+  await sleep(80);
+  ok('回到首页后导航栏显示且「首页」高亮',
+    activePage() === 'page-home' &&
+    d.getElementById('tabbar').classList.contains('show') &&
+    d.getElementById('tab-home').classList.contains('on'));
+  ok('首页有 3 个入口按钮（开始练习 / 举一反三 / 学习报告）',
+    !!d.getElementById('btn-start') && !!d.getElementById('btn-retry') && !!d.getElementById('btn-report'));
+
   /* ================= 衣柜 ================= */
   console.log('\n【衣柜】');
-  click($('btn-wardrobe'));
+  click($('tab-wardrobe'));
   await sleep(80);
-  ok('进入衣柜页', activePage() === 'page-wardrobe', activePage());
+  ok('点「装扮」tab 进入衣柜页', activePage() === 'page-wardrobe', activePage());
+  ok('衣柜页时导航栏仍显示且「装扮」高亮',
+    d.getElementById('tabbar').classList.contains('show') &&
+    d.getElementById('tab-wardrobe').classList.contains('on') &&
+    !d.getElementById('tab-home').classList.contains('on'));
   ok('衣柜格数 = 装扮总数', d.querySelectorAll('#wd-grid .wd-cell').length === 79,
     String(d.querySelectorAll('#wd-grid .wd-cell').length));
   ok('衣柜预览渲染全身像', !!d.querySelector('#wd-preview svg'));
@@ -432,17 +450,35 @@ async function main() {
     JSON.stringify(a.state().worn));
   click($('btn-wardrobe-back'));
   await sleep(60);
+  ok('从衣柜返回后导航栏仍显示且回到「首页」高亮',
+    activePage() === 'page-home' && d.getElementById('tab-home').classList.contains('on'));
 
   /* ================= 报告 ================= */
   console.log('\n【学习报告】');
-  click($('btn-report'));
+  click($('tab-report'));
   await sleep(80);
-  ok('进入报告页', activePage() === 'page-report', activePage());
+  ok('点「报告」tab 进入报告页', activePage() === 'page-report', activePage());
   ok('报告展示累计练习', /累计练习/.test(d.getElementById('report-body').textContent));
   ok('报告展示知识点掌握度', /知识点掌握度/.test(d.getElementById('report-body').textContent));
   ok('报告展示错题本', /错题本/.test(d.getElementById('report-body').textContent));
   click($('btn-report-back'));
   await sleep(60);
+
+  /* ================= 举一反三 ================= */
+  console.log('\n【举一反三】');
+  w.eval('__pyTest.S().dayCount = 0');   // 保证免费额度足够
+  ok('前面故意答错过、存在错题', Object.keys(a.state().wrong).length > 0,
+    String(Object.keys(a.state().wrong).length));
+  click($('btn-retry'));
+  await sleep(80);
+  ok('首页「举一反三」进入练习页', activePage() === 'page-practice', activePage());
+  const retryIt = a.cur();
+  ok('举一反三出的正是错过的题', !!retryIt && (a.state().wrong[retryIt.id] || 0) > 0,
+    retryIt ? retryIt.id + ' wrong=' + (a.state().wrong[retryIt.id] || 0) : 'null');
+  click($('btn-quit'));
+  await sleep(100);
+  click($('btn-cf-yes'));
+  await sleep(150);
 
   /* ================= 激活码 ================= */
   console.log('\n【开通与激活码】');

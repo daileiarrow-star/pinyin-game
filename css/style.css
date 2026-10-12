@@ -149,6 +149,31 @@ input{font-family:inherit}
 .free-tip{text-align:center;font-size:13px;color:var(--ink2);padding-top:2px}
 .free-tip b{color:var(--coral)}
 
+/* ---------- 底部导航栏（首页 / 装扮 / 报告）---------- */
+.tabbar{
+  position:fixed;left:0;right:0;bottom:0;margin:0 auto;max-width:460px;
+  display:none;align-items:stretch;
+  background:#fff;
+  border-top:1px solid var(--line);
+  box-shadow:0 -4px 20px rgba(108,92,231,.08);
+  padding:6px 8px calc(6px + env(safe-area-inset-bottom));
+  z-index:900;
+}
+.tabbar.show{display:flex}
+.tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:6px 0 4px;border-radius:16px;
+  color:#9A93B8;font-size:12px;font-weight:700;
+  transition:color .15s ease,background .15s ease;
+}
+.tab-ico{font-size:22px;line-height:1;filter:grayscale(1) opacity(.55);transition:filter .15s ease}
+.tab.on{color:var(--brand);background:#F3EFFF}
+.tab.on .tab-ico{filter:none}
+.tab:active{transform:scale(.95)}
+/* 有底栏的页面，内容底部让出导航栏高度 */
+body.with-tab .page{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+body.with-tab .toast{bottom:calc(96px + env(safe-area-inset-bottom))}
+
 /* ---------- 练习页 ---------- */
 .bar-outer{height:10px;background:#E7E3FB;border-radius:999px;overflow:hidden;margin-bottom:18px}
 .bar-inner{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--sun),var(--coral));transition:width .3s ease}

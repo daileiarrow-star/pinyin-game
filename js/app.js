@@ -93,11 +93,24 @@
   function showModal(id) { $(id).classList.add('show'); }
   function hideModal(id) { $(id).classList.remove('show'); }
 
+  var TAB_PAGES = { 'page-home': 'tab-home', 'page-wardrobe': 'tab-wardrobe', 'page-report': 'tab-report' };
+
   function showPage(id) {
     var pages = document.querySelectorAll('.page');
     for (var i = 0; i < pages.length; i++) pages[i].classList.remove('active');
     $(id).classList.add('active');
     window.scrollTo(0, 0);
+    /* 底部导航栏：只在 首页 / 装扮 / 报告 三页显示，并同步高亮 */
+    var bar = $('tabbar');
+    if (bar) {
+      var tabId = TAB_PAGES[id];
+      bar.classList.toggle('show', !!tabId);
+      document.body.classList.toggle('with-tab', !!tabId);
+      if (tabId) {
+        var tabs = bar.querySelectorAll('.tab');
+        for (var j = 0; j < tabs.length; j++) tabs[j].classList.toggle('on', tabs[j].id === tabId);
+      }
+    }
   }
 
   /* ============ 语音（两级降级，零成本） ============ */
@@ -290,6 +303,22 @@
   function sessionQuota() {
     if (S.paid) return CONFIG.sessionLength;
     return Math.max(0, Math.min(CONFIG.sessionLength, CONFIG.freeDailyLimit - S.dayCount));
+  }
+
+  /* 举一反三：把错过的题按「错得多在前」排一轮重练（首页按钮 & 报告页共用） */
+  function startWrongPractice() {
+    var ids = [];
+    for (var id in S.wrong) if ((S.wrong[id] || 0) > 0) ids.push(id);
+    ids.sort(function (a, b) { return (S.wrong[b] || 0) - (S.wrong[a] || 0); });
+    if (!ids.length) { toast('还没有错题，先开始练习一轮吧'); return; }
+    if (!S.paid && S.dayCount >= CONFIG.freeDailyLimit) { openPay(); toast('今天的免费练习已经用完啦'); return; }
+    var list = [];
+    for (var i = 0; i < ids.length && list.length < CONFIG.sessionLength; i++) {
+      for (var j = 0; j < QUESTIONS.length; j++) {
+        if (QUESTIONS[j].id === ids[i]) { list.push(QUESTIONS[j]); break; }
+      }
+    }
+    startPractice(list);
   }
 
   function startPractice(customList) {
@@ -1039,16 +1068,7 @@
       btn.className = 'btn btn-primary';
       btn.style.marginTop = '14px';
       btn.textContent = '🔁 只练错题（' + Math.min(wrongIds.length, CONFIG.sessionLength) + ' 题）';
-      btn.onclick = function () {
-        var list = [];
-        for (var i = 0; i < wrongIds.length && list.length < CONFIG.sessionLength; i++) {
-          for (var j = 0; j < QUESTIONS.length; j++) {
-            if (QUESTIONS[j].id === wrongIds[i]) { list.push(QUESTIONS[j]); break; }
-          }
-        }
-        if (!S.paid && S.dayCount >= CONFIG.freeDailyLimit) { openPay(); toast('今天的免费练习已经用完啦'); return; }
-        startPractice(list);
-      };
+      btn.onclick = startWrongPractice;
       sec4.appendChild(btn);
     }
     body.appendChild(sec4);
@@ -1159,8 +1179,11 @@
   /* ============ 事件绑定 ============ */
   function bind() {
     $('btn-start').onclick = function () { startPractice(); };
+    $('btn-retry').onclick = startWrongPractice;
     $('btn-report').onclick = function () { renderReport(); showPage('page-report'); };
-    $('btn-wardrobe').onclick = function () { renderWardrobe(); showPage('page-wardrobe'); };
+    $('tab-home').onclick = function () { renderHome(); showPage('page-home'); };
+    $('tab-wardrobe').onclick = function () { renderWardrobe(); showPage('page-wardrobe'); };
+    $('tab-report').onclick = function () { renderReport(); showPage('page-report'); };
 
     $('btn-quit').onclick = function () {
       confirmBox('要退出练习吗？', '本轮的进度会保留，下次继续。').then(function (yes) {
@@ -1239,6 +1262,7 @@
     } catch (e) { }
 
     renderHome();
+    if (S.gender) showPage('page-home');   // 回访用户直接进首页（同时让底部导航栏出现）
 
     // 首次使用：先选小男孩还是小女孩
     if (!S.gender) openChoose(null);

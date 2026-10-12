@@ -200,6 +200,8 @@
     rollDay();
     $('hd-points').textContent = S.points;
     $('hd-mastered').textContent = masteredCount();
+    var mt = $('hd-mastered-total');
+    if (mt) mt.textContent = KNOWLEDGE_POINTS.length;
     renderStage();
 
     var tip = $('free-tip');
@@ -1128,7 +1130,7 @@
 
   /* ============ 支付 ============ */
   function openPay() {
-    $('pay-note').innerHTML = '扫码支付 ¥99 后，把激活码发给客服获取并填在下面。<br>' +
+    $('pay-note').innerHTML = '扫码支付 ¥9.9 后，把激活码发给客服获取并填在下面。<br>' +
       '<span style="color:#A9A6C0">客服 ' + CONFIG.contact + '</span>';
     var box = $('qr-box');
     box.innerHTML = '';
@@ -1136,7 +1138,7 @@
     img.src = CONFIG.qrImage;
     img.alt = '收款码';
     img.onerror = function () {
-      box.innerHTML = '<div class="qr-ph">［在这里放你的收款码］<br><small>把 assets/qrcode.png 换成你的收款码即可</small></div>';
+      box.innerHTML = '<div class="qr-ph">［在这里放你的收款码］<br><small>把你的收款码存成 assets/qrcode.png 即可<br>建议用微信「设置金额」生成 9.9 元固定收款码</small></div>';
     };
     box.appendChild(img);
     showModal('modal-pay');

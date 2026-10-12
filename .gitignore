@@ -12,3 +12,8 @@ tools/_dump.json
 tools/_*.mp3
 tools/_preview/
 node_modules/
+
+# 校验 / 临检脚本产生的临时文件（下划线开头，不要提交）
+_*.txt
+/_*.js
+/_*.py
